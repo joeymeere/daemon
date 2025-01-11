@@ -1,4 +1,4 @@
-import { FastMCP } from "fastmcp";
+import { LiteMCP } from "litemcp";
 import { drizzle, NodePgDatabase } from "drizzle-orm/node-postgres";
 import { Pool, type PoolConfig } from "pg";
 import {
@@ -10,7 +10,7 @@ import {
 } from "./types";
 import { eq, desc, asc, and, cosineDistance, gte } from "drizzle-orm";
 import { pgTable, timestamp } from "drizzle-orm/pg-core";
-import { jsonb, text, uuid, vector } from "drizzle-orm/pg-core";
+import { jsonb, text, vector } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { z } from "zod";
@@ -26,8 +26,7 @@ import nacl from "tweetnacl";
  */
 export class ContextServerPostgres implements IContextServer {
   private db: NodePgDatabase<typeof ContextServerSchema>;
-  private poolConfig: PoolConfig;
-  private server: FastMCP;
+  private server: LiteMCP;
 
   private embeddingInfo: {
     model: string;
@@ -37,10 +36,9 @@ export class ContextServerPostgres implements IContextServer {
 
   constructor(
     pgOpts: PoolConfig,
-    serverOpts?: { name?: string; port?: number },
-    embeddingOpts?: { embeddingModel: string; embeddingDimensions: number }
+    embeddingOpts?: { embeddingModel: string; embeddingDimensions: number },
+    serverOpts?: { name?: string; port?: number }
   ) {
-    this.poolConfig = pgOpts;
     this.db = drizzle(new Pool(pgOpts), {
       schema: ContextServerSchema,
       casing: "snake_case",
@@ -50,10 +48,7 @@ export class ContextServerPostgres implements IContextServer {
       dimensions: embeddingOpts?.embeddingDimensions || 1536,
     };
 
-    this.server = new FastMCP({
-      name: serverOpts?.name || "Daemon Context Server",
-      version: "0.0.1",
-    });
+    this.server = new LiteMCP(serverOpts?.name || "context-server", "1.0.0");
   }
 
   async init(opts?: {
@@ -66,7 +61,7 @@ export class ContextServerPostgres implements IContextServer {
     const getEmbeddingInfo = async (
       embeddingModel: string,
       embeddingDimensions: number
-    ) => {
+    ): Promise<{ model: string; dimensions: number }> => {
       try {
         const fetchedModel = await this.db
           .select()
@@ -75,12 +70,24 @@ export class ContextServerPostgres implements IContextServer {
           .limit(1)
           .execute();
 
+        if (fetchedModel.length === 0) {
+          await this.db.execute(
+            sql`INSERT INTO settings (key, value) VALUES ('embedding_model', ${embeddingModel});`
+          );
+        }
+
         const fetchedDimensions = await this.db
           .select()
           .from(ContextServerSchema.settings)
           .where(eq(ContextServerSchema.settings.key, "embedding_dimensions"))
           .limit(1)
           .execute();
+
+        if (fetchedDimensions.length === 0) {
+          await this.db.execute(
+            sql`INSERT INTO settings (key, value) VALUES ('embedding_dimensions', ${embeddingDimensions.toString()});`
+          );
+        }
 
         return {
           model: fetchedModel[0]?.value || embeddingModel,
@@ -89,11 +96,15 @@ export class ContextServerPostgres implements IContextServer {
         };
       } catch (e) {
         await this.db.execute(
-          sql`
-          CREATE TABLE settings (key text PRIMARY KEY, value text); 
-          INSERT INTO settings (key, value) VALUES ('embedding_model', '${embeddingModel}');
-          INSERT INTO settings (key, value) VALUES ('embedding_dimensions', '${embeddingDimensions}');
-          `
+          sql`CREATE TABLE IF NOT EXISTS settings (key text PRIMARY KEY, value text);`
+        );
+
+        await this.db.execute(
+          sql`INSERT INTO settings (key, value) VALUES ('embedding_model', ${embeddingModel});`
+        );
+
+        await this.db.execute(
+          sql`INSERT INTO settings (key, value) VALUES ('embedding_dimensions', ${embeddingDimensions.toString()});`
         );
         return {
           model: embeddingModel,
@@ -112,57 +123,29 @@ export class ContextServerPostgres implements IContextServer {
       dimensions,
     };
 
-    // Check if tables exist and if not, initialize them
-    // Daemons
-    try {
-      await this.db
-        .select()
-        .from(ContextServerSchema.daemons)
-        .limit(1)
-        .execute();
-    } catch (e) {
-      await this.db.execute(
-        sql`CREATE TABLE daemons (id uuid PRIMARY KEY, character jsonb, pubkey text NOT NULL)`
-      );
-    }
+    await this.db.execute(
+      sql`CREATE TABLE IF NOT EXISTS daemons (id text PRIMARY KEY, character jsonb, pubkey text NOT NULL)`
+    );
+    console.log("Created daemons table");
 
     // Memories
-    try {
-      await this.db
-        .select()
-        .from(ContextServerSchema.memories)
-        .limit(1)
-        .execute();
-    } catch (e) {
-      await this.db.execute(
-        sql`
-        CREATE TABLE memories (id uuid PRIMARY KEY, daemonId uuid NOT NULL, channelId uuid, createdAt timestamp NOT NULL, content text NOT NULL, embedding vector(dimensions) NOT NULL, originationLogIds uuid[] NOT NULL); 
-        CREATE INDEX IF NOT EXISTS "embeddingIndex" ON "memories" USING hnsw (embedding vector_cosine_ops);
-        `
-      );
-    }
+    await this.db.execute(
+      sql`CREATE TABLE IF NOT EXISTS memories (id text PRIMARY KEY, daemonId text NOT NULL, channelId text, createdAt timestamp NOT NULL, content text NOT NULL, embedding vector(${sql.raw(
+        dimensions.toString()
+      )}) NOT NULL, originationLogIds jsonb NOT NULL)`
+    );
+    console.log("Created memories table");
 
-    const updatedMemoriesWithEmbedding = {
-      ...ContextServerSchema.memories,
-      embedding: vector("embedding", {
-        dimensions: dimensions,
-      }),
-    };
+    await this.db.execute(
+      sql`CREATE INDEX IF NOT EXISTS "embeddingIndex" ON "memories" USING hnsw (embedding vector_cosine_ops)`
+    );
+    console.log("Created embeddingIndex");
 
     // Logs
-    try {
-      await this.db.select().from(ContextServerSchema.logs).limit(1).execute();
-    } catch (e) {
-      await this.db.execute(
-        sql`CREATE TABLE logs (id uuid PRIMARY KEY, daemonId uuid NOT NULL, channelId uuid, createdAt timestamp NOT NULL, content text NOT NULL, type text NOT NULL)`
-      );
-    }
-
-    // Reinitialize db instance with the updated Memories Schema
-    this.db = drizzle(new Pool(this.poolConfig), {
-      schema: ContextServerSchema,
-      casing: "snake_case",
-    });
+    await this.db.execute(
+      sql`CREATE TABLE IF NOT EXISTS logs (id text PRIMARY KEY, daemonId text NOT NULL, channelId text, createdAt timestamp NOT NULL, content text NOT NULL, "type" text NOT NULL)`
+    );
+    console.log("Created logs table");
 
     this.initialized = true;
   }
@@ -181,7 +164,6 @@ export class ContextServerPostgres implements IContextServer {
         bio: z.array(z.string()),
         lore: z.array(z.string()),
         pubkey: z.string(),
-        contextServer: z.string(),
       }),
       execute: async (character: Character) => {
         return await this.registerCharacter(character);
@@ -292,7 +274,7 @@ export class ContextServerPostgres implements IContextServer {
   }
 
   async stop(): Promise<void> {
-    await this.server.stop();
+    // TODO: Placeholder to do things here;
   }
 
   async registerCharacter(character: Character): Promise<string> {
@@ -384,7 +366,10 @@ export class ContextServerPostgres implements IContextServer {
       .limit(opts.limit)
       .execute();
 
-    return relevantMemories;
+    return relevantMemories.map((memory) => ({
+      ...memory,
+      originationLogIds: memory.originationLogIds as string[],
+    }));
   }
 
   async createLog(log: ILog, approval: Approval): Promise<void> {
@@ -481,33 +466,31 @@ const settings = {
 };
 
 const daemons = {
-  id: uuid("id").primaryKey(),
+  id: text("id").primaryKey(),
   character: jsonb("character"),
   pubkey: text("pubkey").notNull(),
 };
 
 const memories = {
-  id: uuid("id").primaryKey(),
-  daemonId: uuid("daemon_id").notNull(),
-  channelId: uuid("channel_id"),
+  id: text("id").primaryKey(),
+  daemonId: text("daemon_id").notNull(),
+  channelId: text("channel_id"),
   createdAt: timestamp("created_at").notNull(),
   content: text("content").notNull(),
-  embedding: vector("embedding", {
-    dimensions: 1536, // will get overriden on init
-  }).notNull(),
-  originationLogIds: uuid("origination_log_ids").array().notNull(),
+  embedding: vector("embedding", { dimensions: 1 }).notNull(), // Dimensions is just a placeholder, gets overwrriten on creation
+  originationLogIds: jsonb("origination_log_ids").notNull(),
 };
 
 const logs = {
-  id: uuid("id").primaryKey(),
-  daemonId: uuid("daemon_id").notNull(),
-  channelId: uuid("channel_id"),
+  id: text("id").primaryKey(),
+  daemonId: text("daemon_id").notNull(),
+  channelId: text("channel_id"),
   createdAt: timestamp("created_at").notNull(),
   content: text("content").notNull(),
   logType: text("log_type").notNull(),
 };
 
-const ContextServerSchema = {
+let ContextServerSchema = {
   daemons: pgTable("daemons", daemons),
   memories: pgTable("memories", memories),
   logs: pgTable("logs", logs),

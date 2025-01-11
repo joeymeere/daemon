@@ -1,10 +1,21 @@
+import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
+
 export interface IDaemon {
   // Properties
-  id: string;
-  character?: Character;
+  id: string | undefined;
+  character: Character | undefined;
   // Private Key maintained by whatever instantianted the Daemon
   // Used to update memories
-  pubkey: string;
+  pubkey: string | undefined;
+  mcpClients: {
+    [key: string]: {
+      url: string;
+      client: Client;
+    };
+  };
+
+  // Methods
+  init(opts: { id?: string; character?: Character }): Promise<void>;
 }
 
 export type Character = {
@@ -12,7 +23,6 @@ export type Character = {
   bio: string[];
   lore: string[];
   pubkey: string;
-  contextServer: string;
 };
 
 export interface IMemory {
