@@ -1,8 +1,15 @@
-import type { Character, IDaemon, ToolRegistration, ITool } from "./types";
+import type {
+  Character,
+  IDaemon,
+  ToolRegistration,
+  ITool,
+  IMessageLifecycle,
+} from "./types";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { SSEClientTransport } from "./SSEClientTransport.js";
 import type { TextContent } from "@modelcontextprotocol/sdk/types.js";
 import type { Keypair } from "@solana/web3.js";
+import { generateEmbeddings, generateText } from "./llm.js";
 
 export class Daemon implements IDaemon {
   id: string | undefined;
@@ -55,6 +62,12 @@ export class Daemon implements IDaemon {
     };
 
     await this.addMCPServer({ url: opts.contextServerUrl });
+
+    if (opts.character) {
+      if (opts.character?.pubkey !== opts.privateKey.publicKey.toBase58()) {
+        throw new Error("Private key does not match character pubkey");
+      }
+    }
 
     if (opts.id) {
       // If id, then fetch character from Context Server
@@ -241,16 +254,54 @@ export class Daemon implements IDaemon {
       actions?: boolean;
       postProcess?: boolean;
     }
-  ): Promise<void> {
+  ): Promise<IMessageLifecycle> {
     const context = opts?.context ?? true;
     const actions = opts?.actions ?? true;
     const postProcess = opts?.postProcess ?? true;
 
     // Lifecycle: message -> fetchConext -> generateText -> takeActions -> postProcess
-    let systemPrompt = this.character?.systemPrompt;
-    let prompt = `
-    # Message
-    ${message}
-    `;
+    let lifecycle: IMessageLifecycle = {
+      message,
+      systemPrompt: this.character?.systemPrompt,
+      embedding: [],
+      context: [],
+      actions: [],
+      postProcess: [],
+    };
+
+    // Generate Embeddings
+    lifecycle = await generateEmbeddings(lifecycle);
+
+    if (context) {
+      for (const tool of this.tools.context) {
+        const result = (await this.callTool(tool.tool.name, tool.serverUrl, {
+          lifecycle: lifecycle,
+        })) as IMessageLifecycle;
+        lifecycle = result;
+      }
+    }
+
+    // Generate Text
+    lifecycle = await generateText(lifecycle);
+
+    if (actions) {
+      for (const tool of this.tools.action) {
+        const result = (await this.callTool(tool.tool.name, tool.serverUrl, {
+          lifecycle: lifecycle,
+        })) as IMessageLifecycle;
+        lifecycle = result;
+      }
+    }
+
+    if (postProcess) {
+      for (const tool of this.tools.postProcess) {
+        const result = (await this.callTool(tool.tool.name, tool.serverUrl, {
+          lifecycle: lifecycle,
+        })) as IMessageLifecycle;
+        lifecycle = result;
+      }
+    }
+
+    return lifecycle;
   }
 }

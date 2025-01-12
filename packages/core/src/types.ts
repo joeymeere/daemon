@@ -15,9 +15,6 @@ export type ModelSettings = z.infer<typeof ZModelSettings>;
 
 export const ZCharacter = z.object({
   name: z.string(),
-  bio: z.array(z.string()),
-  lore: z.array(z.string()),
-  systemPrompt: z.string().optional(),
   pubkey: z.string(),
   // Model Settings
   modelSettings: z.object({
@@ -25,6 +22,9 @@ export const ZCharacter = z.object({
     // Used to embed the message into a vector space
     embedding: ZModelSettings.optional(), // use generation if not set
   }),
+  bio: z.array(z.string()).optional(),
+  lore: z.array(z.string()).optional(),
+  systemPrompt: z.string().optional(),
 });
 
 export type Character = z.infer<typeof ZCharacter>;
@@ -122,15 +122,17 @@ export interface ToolRegistration {
   tool: ITool;
 }
 
-export const ZMessageLifecyle = z.object({
+export const ZMessageLifecycle = z.object({
   message: z.string(),
+  systemPrompt: z.string().optional(),
+  embedding: z.array(z.number()).optional(),
   context: z.array(z.string()).optional(),
   output: z.string().optional(),
   actions: z.array(z.string()).optional(),
   postProcess: z.array(z.string()).optional(),
 });
 
-export type IMessageLifecyle = z.infer<typeof ZMessageLifecyle>;
+export type IMessageLifecycle = z.infer<typeof ZMessageLifecycle>;
 
 export interface IDaemon {
   // Properties
@@ -177,5 +179,5 @@ export interface IDaemon {
       actions?: boolean;
       postProcess?: boolean;
     }
-  ): Promise<void>;
+  ): Promise<IMessageLifecycle>;
 }
