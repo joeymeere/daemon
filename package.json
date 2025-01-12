@@ -11,6 +11,7 @@
     "packages/*"
   ],
   "dependencies": {
+    "@solana/web3.js": "^1.98.0",
     "tweetnacl-util": "^0.15.1"
   }
 }

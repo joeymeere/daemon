@@ -1,8 +1,6 @@
 name: daemon
 
 services:
-  identity-server:
-
   postgres:
     image: pgvector/pgvector:0.8.0-pg17
     environment:

@@ -34,7 +34,7 @@ export class IdentityServerPostgres implements TYPES.IIdentityServer {
   constructor(
     pgOpts: PoolConfig,
     modelInfo: typeof this.modelInfo,
-    serverOpts?: { name?: string; port?: number }
+    serverOpts?: { name?: string }
   ) {
     this.db = drizzle(new Pool(pgOpts), {
       schema: ContextServerSchema,
@@ -56,9 +56,9 @@ export class IdentityServerPostgres implements TYPES.IIdentityServer {
 
     // Memories
     await this.db.execute(
-      sql`CREATE TABLE IF NOT EXISTS memories (id text PRIMARY KEY, daemonId text NOT NULL, channelId text, createdAt timestamp NOT NULL, content text NOT NULL, embedding vector(${sql.raw(
+      sql`CREATE TABLE IF NOT EXISTS memories (id text PRIMARY KEY, daemon_id text NOT NULL, channel_id text, created_at timestamp NOT NULL, content text NOT NULL, embedding vector(${sql.raw(
         this.modelInfo.embedding.dimensions?.toString() || "1536"
-      )}) NOT NULL, originalLifecycle jsonb NOT NULL)`
+      )}) NOT NULL, original_lifecycle jsonb)`
     );
     console.log("Created memories table");
 
@@ -69,7 +69,7 @@ export class IdentityServerPostgres implements TYPES.IIdentityServer {
 
     // Logs
     await this.db.execute(
-      sql`CREATE TABLE IF NOT EXISTS logs (id text PRIMARY KEY, daemonId text NOT NULL, channelId text, createdAt timestamp NOT NULL, lifecycle jsonb)`
+      sql`CREATE TABLE IF NOT EXISTS logs (id text PRIMARY KEY, daemon_id text NOT NULL, channel_id text, created_at timestamp NOT NULL, lifecycle jsonb)`
     );
     console.log("Created logs table");
 

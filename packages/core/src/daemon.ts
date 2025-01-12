@@ -92,7 +92,7 @@ export class Daemon implements IDaemon {
         this.keypair = opts.privateKey;
         this.id = opts.id;
       } catch (e) {
-        throw new Error("Failed to fetch character");
+        throw new Error(`Failed to fetch character: ${e}`);
       }
     } else if (opts.character) {
       // If character, then register character in Context Server
@@ -100,16 +100,14 @@ export class Daemon implements IDaemon {
         const result = await this.callTool(
           "registerCharacter",
           opts.contextServerUrl,
-          {
-            ...opts.character,
-          }
+          opts.character
         );
 
         this.id = result.id;
         this.character = opts.character;
         this.keypair = opts.privateKey;
       } catch (e) {
-        throw new Error("Failed to register character");
+        throw new Error(`Failed to register character: ${e}`);
       }
     } else {
       throw new Error("No character or id provided");
