@@ -1,9 +1,10 @@
-import type {
-  Character,
-  IDaemon,
-  ToolRegistration,
-  ITool,
-  IMessageLifecycle,
+import {
+  type Character,
+  type IDaemon,
+  type ToolRegistration,
+  type ITool,
+  type IMessageLifecycle,
+  ZMessageLifecycle,
 } from "./types";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { SSEClientTransport } from "./SSEClientTransport.js";
@@ -285,10 +286,10 @@ export class Daemon implements IDaemon {
     let lifecycle: IMessageLifecycle = {
       daemonId: this.id,
       message,
-      createdAt: new Date(),
+      createdAt: new Date().toISOString(),
       approval: "",
-      channelId: opts?.channelId,
-      systemPrompt: this.character?.systemPrompt,
+      channelId: opts?.channelId ?? null,
+      systemPrompt: this.character?.systemPrompt ?? null,
       embedding: [],
       context: [],
       output: "",
@@ -309,8 +310,6 @@ export class Daemon implements IDaemon {
     if (context) {
       let contextPromises: Promise<IMessageLifecycle>[] = [];
       for (const tool of this.tools.context) {
-        console.log("Calling tool", tool.tool.name, tool.serverUrl);
-        console.log(JSON.stringify({ ...lifecycle, embedding: [] }, null, 2));
         contextPromises.push(
           this.callTool(tool.tool.name, tool.serverUrl, lifecycle)
         );
@@ -336,9 +335,7 @@ export class Daemon implements IDaemon {
       let actionPromises: Promise<IMessageLifecycle>[] = [];
       for (const tool of this.tools.action) {
         actionPromises.push(
-          this.callTool(tool.tool.name, tool.serverUrl, {
-            lifecycle: lifecycle,
-          })
+          this.callTool(tool.tool.name, tool.serverUrl, lifecycle)
         );
       }
 
@@ -354,9 +351,7 @@ export class Daemon implements IDaemon {
       let postProcessPromises: Promise<IMessageLifecycle>[] = [];
       for (const tool of this.tools.postProcess) {
         postProcessPromises.push(
-          this.callTool(tool.tool.name, tool.serverUrl, {
-            lifecycle: lifecycle,
-          })
+          this.callTool(tool.tool.name, tool.serverUrl, lifecycle)
         );
       }
 
@@ -384,7 +379,7 @@ export class Daemon implements IDaemon {
     );
 
     const signature = nacl.sign(messageBytes, this.keypair.secretKey);
-    lifecycle.approval = encodeBase64(signature);
+    lifecycle.approval = Buffer.from(signature).toString("base64");
 
     return lifecycle;
   }

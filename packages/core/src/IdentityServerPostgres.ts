@@ -163,7 +163,6 @@ export class IdentityServerPostgres implements TYPES.IIdentityServer {
       },
     });
 
-    // Context Tools
     this.server.addTool({
       name: "ctx_fetchMemoryContext",
       description: "Fetch memory context",
@@ -172,6 +171,7 @@ export class IdentityServerPostgres implements TYPES.IIdentityServer {
         return JSON.stringify(await this.ctx_fetchMemoryContext(lifecycle));
       },
     });
+
     // Action Tools
     // Post Process Tools
     this.server.addTool({
@@ -345,7 +345,7 @@ export class IdentityServerPostgres implements TYPES.IIdentityServer {
             daemonId,
             systemPrompt,
             lore,
-            undefined,
+            null,
             undefined
           )
         );
@@ -542,7 +542,7 @@ export class IdentityServerPostgres implements TYPES.IIdentityServer {
     daemonId: string,
     systemPrompt: string,
     summaryPrompt: string,
-    channelId?: string,
+    channelId: string | null,
     lifecycle?: TYPES.IMessageLifecycle
   ) {
     const summary = await generateText(

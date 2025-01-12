@@ -5,10 +5,10 @@ import { z } from "zod";
 export const ZMessageLifecycle = z.object({
   daemonId: z.string(),
   message: z.string(),
-  createdAt: z.date(),
+  createdAt: z.string(),
   approval: z.string(),
-  channelId: z.string().optional(),
-  systemPrompt: z.string().optional(),
+  channelId: z.string().nullable(),
+  systemPrompt: z.string().nullable(),
   embedding: z.array(z.number()).default([]),
   context: z.array(z.string()).default([]),
   output: z.string().default(""),
