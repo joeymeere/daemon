@@ -105,7 +105,7 @@ export interface IDaemonMCPServer {
 
 export interface IIdentityServer extends IDaemonMCPServer {
   // Server Tools
-  registerCharacter(character: Character): Promise<string>; // returns characterId
+  registerCharacter(character: Character): Promise<{ daemonId: string }>; // returns characterId
   fetchCharacter(characterId: string): Promise<Character | undefined>;
   fetchLogs(opts: {
     daemonId: string;

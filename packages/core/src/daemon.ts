@@ -103,7 +103,8 @@ export class Daemon implements IDaemon {
           opts.character
         );
 
-        this.id = result.id;
+        console.log("result", result);
+        this.id = result;
         this.character = opts.character;
         this.keypair = opts.privateKey;
       } catch (e) {

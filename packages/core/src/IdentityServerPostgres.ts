@@ -325,7 +325,9 @@ export class IdentityServerPostgres implements TYPES.IIdentityServer {
   }
 
   // Server Tools
-  async registerCharacter(character: TYPES.Character): Promise<string> {
+  async registerCharacter(
+    character: TYPES.Character
+  ): Promise<{ daemonId: string }> {
     if (!this.initialized) {
       throw new Error("Context Server not initialized");
     }
@@ -339,7 +341,10 @@ export class IdentityServerPostgres implements TYPES.IIdentityServer {
 
     if (character.lore) {
       // Create memories from lore
-      const systemPrompt = `You are a helpful assistant that will take the following lore about an AI agent and create a memory for the AI agent to store and retrieve later.`;
+      const systemPrompt = `
+      You are a helpful assistant that will take the following lore about an AI agent and create a memory for the AI agent to store and retrieve later.
+      Keep memories less than 256 characters.
+      `;
       let lorePromises: Promise<{
         memoryId: string;
         summary: string;
@@ -358,7 +363,7 @@ export class IdentityServerPostgres implements TYPES.IIdentityServer {
       }
       await Promise.all(lorePromises);
     }
-    return daemonId;
+    return { daemonId };
   }
 
   async fetchCharacter(daemonId: string): Promise<TYPES.Character | undefined> {
@@ -516,7 +521,7 @@ export class IdentityServerPostgres implements TYPES.IIdentityServer {
     // Generate Summary & Embedding for Memory ->
     const systemPrompt = `You are a helpful assistant that can concisely summarize a conversation into a one sentence summary to be stored as a memory for an AI agent.`;
     const summaryPrompt = `
-    Summarize the following input message and what the AI agent replied with as a one sentence memory.
+    Summarize the following input message and what the AI agent replied with as a memory that's less than 256 characters.
     # Input Message
     ${lifecycle.message}
     # Agent Reply
