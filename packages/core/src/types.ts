@@ -22,8 +22,10 @@ export const ZModelSettings = z.object({
   provider: z.enum(["openai", "anthropic"]),
   endpoint: z.string(),
   name: z.string(), // gpt-4o, claude-3-5-sonnet, etc.
+  apiKey: z.string().optional(),
   temperature: z.number().optional(),
   maxTokens: z.number().optional(),
+  dimensions: z.number().optional(),
 });
 
 export type ModelSettings = z.infer<typeof ZModelSettings>;
@@ -76,6 +78,7 @@ const ZTool = z.object({
   name: z.string(),
   description: z.string(),
   type: z.enum(["Context", "Action", "PostProcess", "Server"]),
+  zIndex: z.number(),
   inputParameters: z.array(
     z.object({
       name: z.string(),

@@ -1,20 +1,12 @@
 import OpenAI from "openai";
-import type { IDaemon, IMessageLifecycle } from "./types";
+import type { IDaemon, IMessageLifecycle, ModelSettings } from "./types";
 import Anthropic from "@anthropic-ai/sdk";
 
-const DEFAULT_SYSTEM_PROMPT = (daemon: IDaemon) => {
-  return `
-  You are ${daemon.character?.name}. Keep your responses concise and to the point.
-  `;
-};
-
 export async function generateEmbeddings(
-  daemon: IDaemon,
-  lifecycle: IMessageLifecycle
-): Promise<IMessageLifecycle> {
-  const embeddingModelSettings = daemon.character?.modelSettings.embedding;
-  const embeddingModelKey = daemon.modelApiKeys.embeddingKey;
-
+  embeddingModelSettings: ModelSettings,
+  embeddingModelKey: string,
+  message: string
+): Promise<number[]> {
   switch (embeddingModelSettings?.provider) {
     case "openai":
       const client = new OpenAI({
@@ -24,25 +16,22 @@ export async function generateEmbeddings(
 
       const embedding = await client.embeddings.create({
         model: embeddingModelSettings.name,
-        input: lifecycle.message,
+        input: message,
       });
-      lifecycle.embedding = embedding.data[0].embedding;
+      return embedding.data[0].embedding;
       break;
     case "anthropic":
       throw new Error("Anthropic embedding not implemented");
       break;
   }
-
-  return lifecycle;
 }
 
 export async function generateText(
-  daemon: IDaemon,
-  lifecycle: IMessageLifecycle
-): Promise<IMessageLifecycle> {
-  const generationModelSettings = daemon.character?.modelSettings.generation;
-  const generationModelKey = daemon.modelApiKeys.generationKey;
-
+  generationModelSettings: ModelSettings,
+  generationModelKey: string,
+  systemPrompt: string,
+  userMessage: string
+): Promise<string> {
   switch (generationModelSettings?.provider) {
     case "openai":
       const openai = new OpenAI({
@@ -55,18 +44,18 @@ export async function generateText(
         messages: [
           {
             role: "system",
-            content: lifecycle.systemPrompt ?? DEFAULT_SYSTEM_PROMPT(daemon),
+            content: systemPrompt,
           },
           {
             role: "user",
-            content: createPrompt(lifecycle),
+            content: userMessage,
           },
         ],
         temperature: generationModelSettings.temperature,
         max_completion_tokens: generationModelSettings.maxTokens,
       });
 
-      lifecycle.output = openaiResponse.choices[0].message.content ?? undefined;
+      return openaiResponse.choices[0].message.content ?? "";
       break;
     case "anthropic":
       const anthropic = new Anthropic({
@@ -76,25 +65,23 @@ export async function generateText(
 
       const anthropicResponse = await anthropic.messages.create({
         model: generationModelSettings.name,
-        system: lifecycle.systemPrompt ?? DEFAULT_SYSTEM_PROMPT(daemon),
+        system: systemPrompt,
         messages: [
           {
             role: "user",
-            content: createPrompt(lifecycle),
+            content: userMessage,
           },
         ],
         max_tokens: generationModelSettings.maxTokens ?? 1000,
         temperature: generationModelSettings.temperature ?? 0.2,
       });
 
-      lifecycle.output = anthropicResponse.content.join("\n");
+      return anthropicResponse.content.join("\n");
       break;
   }
-
-  return lifecycle;
 }
 
-function createPrompt(lifecycle: IMessageLifecycle): string {
+export function createPrompt(lifecycle: IMessageLifecycle): string {
   return `
   # Message
   ${lifecycle.message}

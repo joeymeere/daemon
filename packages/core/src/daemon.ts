@@ -9,9 +9,15 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { SSEClientTransport } from "./SSEClientTransport.js";
 import type { TextContent } from "@modelcontextprotocol/sdk/types.js";
 import type { Keypair } from "@solana/web3.js";
-import { generateEmbeddings, generateText } from "./llm.js";
+import { createPrompt, generateEmbeddings, generateText } from "./llm.js";
 import nacl from "tweetnacl";
 import { decodeUTF8, encodeBase64 } from "tweetnacl-util";
+
+const DEFAULT_SYSTEM_PROMPT = (daemon: IDaemon) => {
+  return `
+  You are ${daemon.character?.name}. Keep your responses concise and to the point.
+  `;
+};
 
 export class Daemon implements IDaemon {
   id: string | undefined;
@@ -182,6 +188,7 @@ export class Daemon implements IDaemon {
         };
       })
     );
+    this.tools.server.sort((a, b) => a.tool.zIndex - b.tool.zIndex);
 
     this.tools.context.push(
       ...contextToolList.map((contextTool) => {
@@ -191,6 +198,7 @@ export class Daemon implements IDaemon {
         };
       })
     );
+    this.tools.context.sort((a, b) => a.tool.zIndex - b.tool.zIndex);
 
     this.tools.action.push(
       ...actionToolList.map((actionTool) => {
@@ -200,6 +208,7 @@ export class Daemon implements IDaemon {
         };
       })
     );
+    this.tools.action.sort((a, b) => a.tool.zIndex - b.tool.zIndex);
 
     this.tools.postProcess.push(
       ...postProcessToolList.map((postProcessTool) => {
@@ -209,6 +218,7 @@ export class Daemon implements IDaemon {
         };
       })
     );
+    this.tools.postProcess.sort((a, b) => a.tool.zIndex - b.tool.zIndex);
   }
 
   async removeMCPServer(opts: { url: string }): Promise<void> {
@@ -261,6 +271,14 @@ export class Daemon implements IDaemon {
       throw new Error("Daemon ID not found");
     }
 
+    if (!this.character) {
+      throw new Error("Character not found");
+    }
+
+    if (!this.modelApiKeys.embeddingKey || !this.modelApiKeys.generationKey) {
+      throw new Error("Model API keys not found");
+    }
+
     const context = opts?.context ?? true;
     const actions = opts?.actions ?? true;
     const postProcess = opts?.postProcess ?? true;
@@ -284,7 +302,11 @@ export class Daemon implements IDaemon {
     lifecycle = this.generateApproval(lifecycle);
 
     // Generate Embeddings
-    lifecycle = await generateEmbeddings(this, lifecycle);
+    lifecycle.embedding = await generateEmbeddings(
+      this.character.modelSettings.embedding,
+      this.modelApiKeys.embeddingKey,
+      message
+    );
 
     if (context) {
       for (const tool of this.tools.context) {
@@ -296,7 +318,12 @@ export class Daemon implements IDaemon {
     }
 
     // Generate Text
-    lifecycle = await generateText(this, lifecycle);
+    lifecycle.output = await generateText(
+      this.character.modelSettings.generation,
+      this.modelApiKeys.generationKey,
+      this.character.systemPrompt ?? DEFAULT_SYSTEM_PROMPT(this),
+      createPrompt(lifecycle)
+    );
 
     if (actions) {
       for (const tool of this.tools.action) {

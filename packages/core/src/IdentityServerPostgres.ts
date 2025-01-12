@@ -11,6 +11,7 @@ import { z } from "zod";
 import { PublicKey } from "@solana/web3.js";
 import nacl from "tweetnacl";
 import { decodeUTF8 } from "tweetnacl-util";
+import { generateText, generateEmbeddings } from "./llm";
 
 /**
  * Context Server manages
@@ -23,101 +24,30 @@ export class IdentityServerPostgres implements TYPES.IIdentityServer {
   private db: NodePgDatabase<typeof ContextServerSchema>;
   private server: LiteMCP;
 
-  private embeddingInfo: {
-    model: string;
-    dimensions: number;
+  private modelInfo: {
+    embedding: TYPES.ModelSettings;
+    generation: TYPES.ModelSettings;
   };
 
   private initialized: boolean = false;
 
   constructor(
     pgOpts: PoolConfig,
-    embeddingOpts?: { embeddingModel: string; embeddingDimensions: number },
+    modelInfo: typeof this.modelInfo,
     serverOpts?: { name?: string; port?: number }
   ) {
     this.db = drizzle(new Pool(pgOpts), {
       schema: ContextServerSchema,
       casing: "snake_case",
     });
-    this.embeddingInfo = {
-      model: embeddingOpts?.embeddingModel || "openai",
-      dimensions: embeddingOpts?.embeddingDimensions || 1536,
-    };
 
+    this.modelInfo = modelInfo;
     this.server = new LiteMCP(serverOpts?.name || "context-server", "1.0.0");
   }
 
-  async init(opts?: {
-    embeddingModel: string;
-    embeddingDimensions: number;
-  }): Promise<void> {
+  async init(): Promise<void> {
     // Enable pgvector extension
     await this.db.execute(sql`CREATE EXTENSION IF NOT EXISTS vector`);
-
-    const getEmbeddingInfo = async (
-      embeddingModel: string,
-      embeddingDimensions: number
-    ): Promise<{ model: string; dimensions: number }> => {
-      try {
-        const fetchedModel = await this.db
-          .select()
-          .from(ContextServerSchema.settings)
-          .where(eq(ContextServerSchema.settings.key, "embedding_model"))
-          .limit(1)
-          .execute();
-
-        if (fetchedModel.length === 0) {
-          await this.db.execute(
-            sql`INSERT INTO settings (key, value) VALUES ('embedding_model', ${embeddingModel});`
-          );
-        }
-
-        const fetchedDimensions = await this.db
-          .select()
-          .from(ContextServerSchema.settings)
-          .where(eq(ContextServerSchema.settings.key, "embedding_dimensions"))
-          .limit(1)
-          .execute();
-
-        if (fetchedDimensions.length === 0) {
-          await this.db.execute(
-            sql`INSERT INTO settings (key, value) VALUES ('embedding_dimensions', ${embeddingDimensions.toString()});`
-          );
-        }
-
-        return {
-          model: fetchedModel[0]?.value || embeddingModel,
-          dimensions:
-            Number(fetchedDimensions[0]?.value) || embeddingDimensions,
-        };
-      } catch (e) {
-        await this.db.execute(
-          sql`CREATE TABLE IF NOT EXISTS settings (key text PRIMARY KEY, value text);`
-        );
-
-        await this.db.execute(
-          sql`INSERT INTO settings (key, value) VALUES ('embedding_model', ${embeddingModel});`
-        );
-
-        await this.db.execute(
-          sql`INSERT INTO settings (key, value) VALUES ('embedding_dimensions', ${embeddingDimensions.toString()});`
-        );
-        return {
-          model: embeddingModel,
-          dimensions: embeddingDimensions,
-        };
-      }
-    };
-
-    const { model, dimensions } = await getEmbeddingInfo(
-      opts?.embeddingModel || "openai",
-      opts?.embeddingDimensions || 1536
-    );
-
-    this.embeddingInfo = {
-      model,
-      dimensions,
-    };
 
     await this.db.execute(
       sql`CREATE TABLE IF NOT EXISTS daemons (id text PRIMARY KEY, character jsonb, pubkey text NOT NULL)`
@@ -127,8 +57,8 @@ export class IdentityServerPostgres implements TYPES.IIdentityServer {
     // Memories
     await this.db.execute(
       sql`CREATE TABLE IF NOT EXISTS memories (id text PRIMARY KEY, daemonId text NOT NULL, channelId text, createdAt timestamp NOT NULL, content text NOT NULL, embedding vector(${sql.raw(
-        dimensions.toString()
-      )}) NOT NULL, originationLogIds jsonb NOT NULL)`
+        this.modelInfo.embedding.dimensions?.toString() || "1536"
+      )}) NOT NULL, originalLifecycle jsonb NOT NULL)`
     );
     console.log("Created memories table");
 
@@ -307,6 +237,7 @@ export class IdentityServerPostgres implements TYPES.IIdentityServer {
         name: "registerCharacter",
         description: "Register a new character",
         type: "Server",
+        zIndex: 0,
         inputParameters: [
           {
             name: "character",
@@ -319,6 +250,7 @@ export class IdentityServerPostgres implements TYPES.IIdentityServer {
         name: "fetchCharacter",
         description: "Fetch a character",
         type: "Server",
+        zIndex: 0,
         inputParameters: [
           {
             name: "daemonId",
@@ -331,6 +263,7 @@ export class IdentityServerPostgres implements TYPES.IIdentityServer {
         name: "fetchLogs",
         description: "Fetch logs",
         type: "Server",
+        zIndex: 0,
         inputParameters: [
           {
             name: "daemonId",
@@ -348,6 +281,7 @@ export class IdentityServerPostgres implements TYPES.IIdentityServer {
         name: "ctx_fetchMemoryContext",
         description: "Fetch memory context",
         type: "Context",
+        zIndex: 0,
         inputParameters: [
           {
             name: "lifecycle",
@@ -369,6 +303,7 @@ export class IdentityServerPostgres implements TYPES.IIdentityServer {
         name: "pp_createLog",
         description: "Create a log",
         type: "PostProcess",
+        zIndex: 99999,
         inputParameters: [
           {
             name: "lifecycle",
@@ -381,6 +316,7 @@ export class IdentityServerPostgres implements TYPES.IIdentityServer {
         name: "pp_createMemory",
         description: "Create a memory",
         type: "PostProcess",
+        zIndex: 0,
         inputParameters: [
           {
             name: "lifecycle",
@@ -558,10 +494,49 @@ export class IdentityServerPostgres implements TYPES.IIdentityServer {
     }
 
     // TODO:
-    // Decide if memory should be created ->
-    // Sample Summary & Embedding for Memory ->
-    // Create Memory
+    // Decide if memory should be created (current ALL messages are stored) ->
+    // Generate Summary & Embedding for Memory ->
+    const systemPrompt = `You are a helpful assistant that can concisely summarize a conversation into a one sentence summary to be stored as a memory for an AI agent.`;
+    const summaryPrompt = `
+    Summariz the following input message and what the AI agent replied with as a one sentence memory.
+    # Input Message
+    ${lifecycle.message}
+    # Agent Reply
+    ${lifecycle.output} 
+    `;
+    const summary = await generateText(
+      this.modelInfo.generation,
+      this.modelInfo.generation.apiKey!,
+      systemPrompt,
+      summaryPrompt
+    );
+    const embedding = await generateEmbeddings(
+      this.modelInfo.embedding,
+      this.modelInfo.embedding.apiKey!,
+      summary
+    );
 
+    // Create Memory
+    const memoryId = nanoid();
+    await this.db.insert(ContextServerSchema.memories).values({
+      id: memoryId,
+      daemonId: lifecycle.daemonId,
+      channelId: lifecycle.channelId,
+      createdAt: new Date(),
+      content: summary,
+      embedding: embedding,
+      originalLifecycle: lifecycle,
+    });
+
+    lifecycle.postProcess.push(
+      JSON.stringify({
+        server: this.server.name,
+        tool: "pp_createMemory",
+        args: {
+          memoryId,
+        },
+      })
+    );
     return lifecycle;
   }
 }
@@ -600,7 +575,7 @@ const memories = {
   createdAt: timestamp("created_at").notNull(),
   content: text("content").notNull(),
   embedding: vector("embedding", { dimensions: 1 }).notNull(), // Dimensions is just a placeholder, gets overwrriten on creation
-  originationLogIds: jsonb("origination_log_ids").notNull(),
+  originalLifecycle: jsonb("original_lifecycle").notNull(),
 };
 
 const logs = {
