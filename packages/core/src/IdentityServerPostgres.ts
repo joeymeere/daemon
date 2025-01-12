@@ -579,16 +579,20 @@ export class IdentityServerPostgres implements TYPES.IIdentityServer {
 
 function checkApproval(daemonKey: string, lifecycle: TYPES.IMessageLifecycle) {
   const messageBytes = decodeUTF8(
-    JSON.stringify({
-      message: lifecycle.message,
-      createdAt: lifecycle.createdAt,
-    })
+    JSON.stringify(
+      {
+        message: lifecycle.message,
+        createdAt: lifecycle.createdAt,
+      },
+      null,
+      0
+    )
   );
 
   const pubkey = new PublicKey(daemonKey);
   return nacl.sign.detached.verify(
     messageBytes,
-    Buffer.from(lifecycle.approval, "base64"),
+    Uint8Array.from(Buffer.from(lifecycle.approval, "base64")),
     pubkey.toBytes()
   );
 }

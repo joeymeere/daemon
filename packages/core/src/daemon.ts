@@ -372,13 +372,17 @@ export class Daemon implements IDaemon {
     }
 
     const messageBytes = decodeUTF8(
-      JSON.stringify({
-        message: lifecycle.message,
-        createdAt: lifecycle.createdAt,
-      })
+      JSON.stringify(
+        {
+          message: lifecycle.message,
+          createdAt: lifecycle.createdAt,
+        },
+        null,
+        0
+      )
     );
 
-    const signature = nacl.sign(messageBytes, this.keypair.secretKey);
+    const signature = nacl.sign.detached(messageBytes, this.keypair.secretKey);
     lifecycle.approval = Buffer.from(signature).toString("base64");
 
     return lifecycle;
