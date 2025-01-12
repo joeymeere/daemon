@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import type { IDaemon, IMessageLifecycle, ModelSettings } from "./types";
+import type { IMessageLifecycle, ModelSettings } from "./types";
 import Anthropic from "@anthropic-ai/sdk";
 
 export async function generateEmbeddings(

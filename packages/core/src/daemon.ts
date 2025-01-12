@@ -309,12 +309,19 @@ export class Daemon implements IDaemon {
     );
 
     if (context) {
+      let contextPromises: Promise<IMessageLifecycle>[] = [];
       for (const tool of this.tools.context) {
-        const result = (await this.callTool(tool.tool.name, tool.serverUrl, {
-          lifecycle: lifecycle,
-        })) as IMessageLifecycle;
-        lifecycle = result;
+        contextPromises.push(
+          this.callTool(tool.tool.name, tool.serverUrl, lifecycle)
+        );
       }
+
+      const contextResults = await Promise.all(contextPromises);
+      lifecycle.context = contextResults
+        .map((lfcyl) => {
+          return lfcyl.context;
+        })
+        .flat();
     }
 
     // Generate Text
@@ -326,21 +333,39 @@ export class Daemon implements IDaemon {
     );
 
     if (actions) {
+      let actionPromises: Promise<IMessageLifecycle>[] = [];
       for (const tool of this.tools.action) {
-        const result = (await this.callTool(tool.tool.name, tool.serverUrl, {
-          lifecycle: lifecycle,
-        })) as IMessageLifecycle;
-        lifecycle = result;
+        actionPromises.push(
+          this.callTool(tool.tool.name, tool.serverUrl, {
+            lifecycle: lifecycle,
+          })
+        );
       }
+
+      const actionResults = await Promise.all(actionPromises);
+      lifecycle.actions = actionResults
+        .map((lfcyl) => {
+          return lfcyl.actions;
+        })
+        .flat();
     }
 
     if (postProcess) {
+      let postProcessPromises: Promise<IMessageLifecycle>[] = [];
       for (const tool of this.tools.postProcess) {
-        const result = (await this.callTool(tool.tool.name, tool.serverUrl, {
-          lifecycle: lifecycle,
-        })) as IMessageLifecycle;
-        lifecycle = result;
+        postProcessPromises.push(
+          this.callTool(tool.tool.name, tool.serverUrl, {
+            lifecycle: lifecycle,
+          })
+        );
       }
+
+      const postProcessResults = await Promise.all(postProcessPromises);
+      lifecycle.postProcess = postProcessResults
+        .map((lfcyl) => {
+          return lfcyl.postProcess;
+        })
+        .flat();
     }
 
     return lifecycle;

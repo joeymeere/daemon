@@ -175,15 +175,11 @@ export class IdentityServerPostgres implements TYPES.IIdentityServer {
     this.server.addTool({
       name: "ctx_fetchMemoryContext",
       description: "Fetch memory context",
-      parameters: z.object({
-        lifecycle: TYPES.ZMessageLifecycle,
-      }),
+      parameters: TYPES.ZMessageLifecycle,
       execute: async (args) => {
         return {
           type: "text",
-          text: JSON.stringify(
-            await this.ctx_fetchMemoryContext(args.lifecycle)
-          ),
+          text: JSON.stringify(await this.ctx_fetchMemoryContext(args)),
         };
       },
     });
