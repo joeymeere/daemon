@@ -61,40 +61,49 @@ console.log(
   "Sending (no context, no actions, no post-processing) message to Bob..."
 );
 const msg1 = "Hello Bob, built anything cool recently?";
+console.log("User: ", msg1);
 const msg1Lifecycle = await bob.message(msg1, {
   context: false,
   actions: false,
   postProcess: false,
 });
-console.log(msg1Lifecycle);
+console.log(`Bob: ${msg1Lifecycle.output}`);
 
 // Should mention his house.
 console.log("Sending (no post-processing) message to Bob...");
 const msg2 = "Hello Bob, built anything cool recently?";
+console.log("User: ", msg2);
 const msg2Lifecycle = await bob.message(msg2, {
   context: true,
   actions: true,
   postProcess: false,
 });
-console.log(msg2Lifecycle);
+console.log(`Bob: ${msg2Lifecycle.output}`);
+console.log(msg2Lifecycle.context);
 
 // Should create a new memory about divorce
 console.log("Sending message to Bob...");
 const msg3 =
   "Hello Bob, your wife asked me to serve you divorce papers. Looks like you're getting divorced next month.";
+console.log("User: ", msg3);
 const msg3Lifecycle = await bob.message(msg3, {
   context: true,
   actions: true,
   postProcess: true,
 });
-console.log(msg3Lifecycle);
+console.log(`Bob: ${msg3Lifecycle.output}`);
+console.log(msg3Lifecycle.context);
+console.log(msg3Lifecycle.postProcess);
 
 // Should mention the divorce maybe?
 console.log("Sending message to Bob...");
 const msg4 = "Hello Bob, anything interesting happening in your life?";
+console.log("User: ", msg4);
 const msg4Lifecycle = await bob.message(msg4, {
   context: true,
   actions: true,
   postProcess: true,
 });
-console.log(msg4Lifecycle);
+console.log(`Bob: ${msg4Lifecycle.output}`);
+console.log(msg4Lifecycle.context);
+console.log(msg4Lifecycle.postProcess);

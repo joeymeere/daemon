@@ -176,10 +176,10 @@ export class IdentityServerPostgres implements TYPES.IIdentityServer {
       name: "ctx_fetchMemoryContext",
       description: "Fetch memory context",
       parameters: TYPES.ZMessageLifecycle,
-      execute: async (args) => {
+      execute: async (lifecycle: TYPES.IMessageLifecycle) => {
         return {
           type: "text",
-          text: JSON.stringify(await this.ctx_fetchMemoryContext(args)),
+          text: JSON.stringify(await this.ctx_fetchMemoryContext(lifecycle)),
         };
       },
     });
@@ -189,8 +189,11 @@ export class IdentityServerPostgres implements TYPES.IIdentityServer {
       name: "pp_createMemory",
       description: "Create a memory",
       parameters: TYPES.ZMessageLifecycle,
-      execute: async (args) => {
-        return await this.pp_createMemory(args);
+      execute: async (lifecycle: TYPES.IMessageLifecycle) => {
+        return {
+          type: "text",
+          text: JSON.stringify(await this.pp_createMemory(lifecycle)),
+        };
       },
     });
 
@@ -198,8 +201,11 @@ export class IdentityServerPostgres implements TYPES.IIdentityServer {
       name: "pp_createLog",
       description: "Insert a log",
       parameters: TYPES.ZMessageLifecycle,
-      execute: async (args) => {
-        return await this.pp_createLog(args);
+      execute: async (lifecycle: TYPES.IMessageLifecycle) => {
+        return {
+          type: "text",
+          text: JSON.stringify(await this.pp_createLog(lifecycle)),
+        };
       },
     });
 
