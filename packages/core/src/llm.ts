@@ -44,6 +44,14 @@ export async function generateText(
         messages: [
           {
             role: "system",
+            content: `
+            You are a growing and adapting AI agent.
+            You are able to learn from your experiences and adapt your behavior to new situations. 
+            You are able to take in new input and make new memories and use those memories to make decisions.
+            `,
+          },
+          {
+            role: "user",
             content: systemPrompt,
           },
           {
