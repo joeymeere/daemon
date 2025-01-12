@@ -134,7 +134,7 @@ export class IdentityServerPostgres implements TYPES.IIdentityServer {
       description: "Register a new character",
       parameters: TYPES.ZCharacter,
       execute: async (character: TYPES.Character) => {
-        return await this.registerCharacter(character);
+        return JSON.stringify(await this.registerCharacter(character));
       },
     });
 
@@ -145,12 +145,7 @@ export class IdentityServerPostgres implements TYPES.IIdentityServer {
         daemonId: z.string(),
       }),
       execute: async (args: { daemonId: string }) => {
-        return {
-          type: "text",
-          text: JSON.stringify(
-            (await this.fetchCharacter(args.daemonId)) || {}
-          ),
-        };
+        return JSON.stringify((await this.fetchCharacter(args.daemonId)) || {});
       },
     });
 
@@ -164,10 +159,7 @@ export class IdentityServerPostgres implements TYPES.IIdentityServer {
         orderBy: z.enum(["asc", "desc"]).optional(),
       }),
       execute: async (args) => {
-        return {
-          type: "text",
-          text: JSON.stringify(await this.fetchLogs(args)),
-        };
+        return JSON.stringify(await this.fetchLogs(args));
       },
     });
 
@@ -177,10 +169,7 @@ export class IdentityServerPostgres implements TYPES.IIdentityServer {
       description: "Fetch memory context",
       parameters: TYPES.ZMessageLifecycle,
       execute: async (lifecycle: TYPES.IMessageLifecycle) => {
-        return {
-          type: "text",
-          text: JSON.stringify(await this.ctx_fetchMemoryContext(lifecycle)),
-        };
+        return JSON.stringify(await this.ctx_fetchMemoryContext(lifecycle));
       },
     });
     // Action Tools
@@ -190,10 +179,7 @@ export class IdentityServerPostgres implements TYPES.IIdentityServer {
       description: "Create a memory",
       parameters: TYPES.ZMessageLifecycle,
       execute: async (lifecycle: TYPES.IMessageLifecycle) => {
-        return {
-          type: "text",
-          text: JSON.stringify(await this.pp_createMemory(lifecycle)),
-        };
+        return JSON.stringify(await this.pp_createMemory(lifecycle));
       },
     });
 
@@ -202,10 +188,7 @@ export class IdentityServerPostgres implements TYPES.IIdentityServer {
       description: "Insert a log",
       parameters: TYPES.ZMessageLifecycle,
       execute: async (lifecycle: TYPES.IMessageLifecycle) => {
-        return {
-          type: "text",
-          text: JSON.stringify(await this.pp_createLog(lifecycle)),
-        };
+        return JSON.stringify(await this.pp_createLog(lifecycle));
       },
     });
 

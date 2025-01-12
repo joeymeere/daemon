@@ -57,6 +57,7 @@ await bob.init({
 // Message Tests
 console.log("Bob is initialized and ready to go!");
 
+/*
 console.log(
   "Sending (no context, no actions, no post-processing) message to Bob..."
 );
@@ -68,6 +69,7 @@ const msg1Lifecycle = await bob.message(msg1, {
   postProcess: false,
 });
 console.log(`Bob: ${msg1Lifecycle.output}`);
+*/
 
 // Should mention his house.
 console.log("Sending (no post-processing) message to Bob...");

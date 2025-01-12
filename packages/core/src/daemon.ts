@@ -103,7 +103,7 @@ export class Daemon implements IDaemon {
           opts.character
         );
 
-        this.id = result;
+        this.id = result.daemonId;
         this.character = opts.character;
         this.keypair = opts.privateKey;
       } catch (e) {
@@ -309,6 +309,8 @@ export class Daemon implements IDaemon {
     if (context) {
       let contextPromises: Promise<IMessageLifecycle>[] = [];
       for (const tool of this.tools.context) {
+        console.log("Calling tool", tool.tool.name, tool.serverUrl);
+        console.log(JSON.stringify({ ...lifecycle, embedding: [] }, null, 2));
         contextPromises.push(
           this.callTool(tool.tool.name, tool.serverUrl, lifecycle)
         );
