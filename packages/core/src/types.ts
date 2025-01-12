@@ -1,7 +1,22 @@
 import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import type { Tool } from "@modelcontextprotocol/sdk/types";
 import type { Keypair } from "@solana/web3.js";
 import { z } from "zod";
+
+export const ZMessageLifecycle = z.object({
+  daemonId: z.string(),
+  message: z.string(),
+  createdAt: z.date(),
+  approval: z.string(),
+  channelId: z.string().optional(),
+  systemPrompt: z.string().optional(),
+  embedding: z.array(z.number()).default([]),
+  context: z.array(z.string()).default([]),
+  output: z.string().default(""),
+  actions: z.array(z.string()).default([]),
+  postProcess: z.array(z.string()).default([]),
+});
+
+export type IMessageLifecycle = z.infer<typeof ZMessageLifecycle>;
 
 export const ZModelSettings = z.object({
   provider: z.enum(["openai", "anthropic"]),
@@ -46,8 +61,7 @@ const ZLog = z.object({
   daemonId: z.string(),
   channelId: z.string().nullable(),
   createdAt: z.date().optional(),
-  content: z.string(),
-  logType: z.enum(["input", "output"]),
+  lifecycle: ZMessageLifecycle,
 });
 
 export type ILog = z.infer<typeof ZLog>;
@@ -97,43 +111,19 @@ export interface IIdentityServer extends IDaemonMCPServer {
     orderBy?: "asc" | "desc"; // Default desc
   }): Promise<ILog[]>;
   // Context Tools
-  fetchMemoryContext(opts: {
-    daemonId: string;
-    messageEmbedding: number[];
-    limit: number; // Default 10
-    channelId?: string; // Will include Common Memories and Channel Memories
-  }): Promise<IMemory[]>;
+  ctx_fetchMemoryContext(
+    lifecycle: IMessageLifecycle
+  ): Promise<IMessageLifecycle>;
   // Action Tools
   // Post Process Tools
-  createLog(log: ILog, approval: IApproval): Promise<void>;
-  createMemory(
-    opts: {
-      daemonId: string;
-      message: string;
-      messageEmbedding: number[];
-      channelId?: string; // Will include Common Memories and Channel Memories
-    },
-    approval: IApproval
-  ): Promise<string>; // Returns memoryId
+  pp_createLog(lifecycle: IMessageLifecycle): Promise<IMessageLifecycle>;
+  pp_createMemory(lifecycle: IMessageLifecycle): Promise<IMessageLifecycle>;
 }
 
 export interface ToolRegistration {
   serverUrl: string;
   tool: ITool;
 }
-
-export const ZMessageLifecycle = z.object({
-  message: z.string(),
-  channelId: z.string().optional(),
-  systemPrompt: z.string().optional(),
-  embedding: z.array(z.number()).optional(),
-  context: z.array(z.string()).optional(),
-  output: z.string().optional(),
-  actions: z.array(z.string()).optional(),
-  postProcess: z.array(z.string()).optional(),
-});
-
-export type IMessageLifecycle = z.infer<typeof ZMessageLifecycle>;
 
 export interface IDaemon {
   // Properties

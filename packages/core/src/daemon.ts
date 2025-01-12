@@ -10,6 +10,8 @@ import { SSEClientTransport } from "./SSEClientTransport.js";
 import type { TextContent } from "@modelcontextprotocol/sdk/types.js";
 import type { Keypair } from "@solana/web3.js";
 import { generateEmbeddings, generateText } from "./llm.js";
+import nacl from "tweetnacl";
+import { decodeUTF8, encodeBase64 } from "tweetnacl-util";
 
 export class Daemon implements IDaemon {
   id: string | undefined;
@@ -255,20 +257,31 @@ export class Daemon implements IDaemon {
       postProcess?: boolean;
     }
   ): Promise<IMessageLifecycle> {
+    if (!this.id) {
+      throw new Error("Daemon ID not found");
+    }
+
     const context = opts?.context ?? true;
     const actions = opts?.actions ?? true;
     const postProcess = opts?.postProcess ?? true;
 
     // Lifecycle: message -> fetchContext -> generateText -> takeActions -> postProcess
     let lifecycle: IMessageLifecycle = {
+      daemonId: this.id,
       message,
+      createdAt: new Date(),
+      approval: "",
       channelId: opts?.channelId,
       systemPrompt: this.character?.systemPrompt,
       embedding: [],
       context: [],
+      output: "",
       actions: [],
       postProcess: [],
     };
+
+    // Generate Approval
+    lifecycle = this.generateApproval(lifecycle);
 
     // Generate Embeddings
     lifecycle = await generateEmbeddings(this, lifecycle);
@@ -302,6 +315,24 @@ export class Daemon implements IDaemon {
         lifecycle = result;
       }
     }
+
+    return lifecycle;
+  }
+
+  private generateApproval(lifecycle: IMessageLifecycle): IMessageLifecycle {
+    if (!this.keypair) {
+      throw new Error("Keypair not found");
+    }
+
+    const messageBytes = decodeUTF8(
+      JSON.stringify({
+        message: lifecycle.message,
+        createdAt: lifecycle.createdAt,
+      })
+    );
+
+    const signature = nacl.sign(messageBytes, this.keypair.secretKey);
+    lifecycle.approval = encodeBase64(signature);
 
     return lifecycle;
   }

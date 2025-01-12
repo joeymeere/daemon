@@ -9,5 +9,8 @@
   "type": "module",
   "workspaces": [
     "packages/*"
-  ]
+  ],
+  "dependencies": {
+    "tweetnacl-util": "^0.15.1"
+  }
 }
