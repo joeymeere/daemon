@@ -9,6 +9,7 @@
 import { Keypair } from "@solana/web3.js";
 import { IdentityServerPostgres } from "../packages/core/src/IdentityServerPostgres";
 import { Daemon } from "../packages/core/src/daemon";
+import { describe, it, expect } from "bun:test";
 
 // ID Server
 const idServer = new IdentityServerPostgres(
@@ -57,53 +58,53 @@ await bob.init({
 // Message Tests
 console.log("Bob is initialized and ready to go!");
 
-console.log(
-  "Sending (no context, no actions, no post-processing) message to Bob..."
-);
-const msg1 = "Hello Bob, built anything cool recently?";
-console.log("User: ", msg1);
-const msg1Lifecycle = await bob.message(msg1, {
-  context: false,
-  actions: false,
-  postProcess: false,
-});
-console.log(`Bob: ${msg1Lifecycle.output}`);
+describe("Bob", () => {
+  it("should respond to a stateless message", async () => {
+    const msg = "Hello Bob, built anything cool recently?";
+    const msgLifecycle = await bob.message(msg, {
+      context: false,
+      actions: false,
+      postProcess: false,
+    });
+    console.log("USER: ", msg);
+    console.log("BOB: ", msgLifecycle.output);
+  });
 
-// Should mention his house.
-console.log("Sending (no post-processing) message to Bob...");
-const msg2 = "Hello Bob, built anything cool recently?";
-console.log("User: ", msg2);
-const msg2Lifecycle = await bob.message(msg2, {
-  context: true,
-  actions: true,
-  postProcess: false,
-});
-console.log(`Bob: ${msg2Lifecycle.output}`);
-console.log(msg2Lifecycle.context);
+  it("should respond to a message with context", async () => {
+    const msg = "Hello Bob, built anything cool recently?";
+    const msgLifecycle = await bob.message(msg, {
+      context: true,
+      actions: false,
+      postProcess: false,
+    });
+    console.log("USER: ", msg);
+    console.log("BOB: ", msgLifecycle.output);
+    console.log("CONTEXT: ", msgLifecycle.context);
+  });
 
-// Should create a new memory about divorce
-console.log("Sending message to Bob...");
-const msg3 =
-  "Hello Bob, your wife asked me to serve you divorce papers. Looks like you're getting divorced next month.";
-console.log("User: ", msg3);
-const msg3Lifecycle = await bob.message(msg3, {
-  context: true,
-  actions: true,
-  postProcess: true,
-});
-console.log(`Bob: ${msg3Lifecycle.output}`);
-console.log(msg3Lifecycle.context);
-console.log(msg3Lifecycle.postProcess);
+  it("should respond to a message with context and actions", async () => {
+    const msg = "Hey Bob, good job on the new horse barn!";
+    const msgLifecycle = await bob.message(msg, {
+      context: true,
+      actions: true,
+      postProcess: false,
+    });
+    console.log("USER: ", msg);
+    console.log("BOB: ", msgLifecycle.output);
+    console.log("CONTEXT: ", msgLifecycle.context);
+  });
 
-// Should mention the divorce maybe?
-console.log("Sending message to Bob...");
-const msg4 = "Hello Bob, anything interesting happening in your life?";
-console.log("User: ", msg4);
-const msg4Lifecycle = await bob.message(msg4, {
-  context: true,
-  actions: true,
-  postProcess: true,
+  it("should respond to a message with context, actions, and post-processing", async () => {
+    const msg = "Hello Bob, built anything cool recently?";
+    const msgLifecycle = await bob.message(msg, {
+      context: true,
+      actions: true,
+      postProcess: true,
+    });
+    console.log("USER: ", msg);
+    console.log("BOB: ", msgLifecycle.output);
+    console.log("CONTEXT: ", msgLifecycle.context);
+    console.log("ACTIONS: ", msgLifecycle.actions);
+    console.log("POST-PROCESS: ", msgLifecycle.postProcess);
+  });
 });
-console.log(`Bob: ${msg4Lifecycle.output}`);
-console.log(msg4Lifecycle.context);
-console.log(msg4Lifecycle.postProcess);
