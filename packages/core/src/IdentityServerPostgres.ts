@@ -69,7 +69,7 @@ export class IdentityServerPostgres implements TYPES.IIdentityServer {
 
     // Logs
     await this.db.execute(
-      sql`CREATE TABLE IF NOT EXISTS logs (id text PRIMARY KEY, daemonId text NOT NULL, channelId text, createdAt timestamp NOT NULL, lifecycle jsonb NOT NULL)`
+      sql`CREATE TABLE IF NOT EXISTS logs (id text PRIMARY KEY, daemonId text NOT NULL, channelId text, createdAt timestamp NOT NULL, lifecycle jsonb)`
     );
     console.log("Created logs table");
 
@@ -336,6 +336,28 @@ export class IdentityServerPostgres implements TYPES.IIdentityServer {
       character,
       pubkey: character.pubkey,
     });
+
+    if (character.lore) {
+      // Create memories from lore
+      const systemPrompt = `You are a helpful assistant that will take the following lore about an AI agent and create a memory for the AI agent to store and retrieve later.`;
+      let lorePromises: Promise<{
+        memoryId: string;
+        summary: string;
+        embedding: number[];
+      }>[] = [];
+      for (const lore of character.lore) {
+        lorePromises.push(
+          this.createMemoryAndEmbeddings(
+            daemonId,
+            systemPrompt,
+            lore,
+            undefined,
+            undefined
+          )
+        );
+      }
+      await Promise.all(lorePromises);
+    }
     return daemonId;
   }
 
@@ -494,12 +516,41 @@ export class IdentityServerPostgres implements TYPES.IIdentityServer {
     // Generate Summary & Embedding for Memory ->
     const systemPrompt = `You are a helpful assistant that can concisely summarize a conversation into a one sentence summary to be stored as a memory for an AI agent.`;
     const summaryPrompt = `
-    Summariz the following input message and what the AI agent replied with as a one sentence memory.
+    Summarize the following input message and what the AI agent replied with as a one sentence memory.
     # Input Message
     ${lifecycle.message}
     # Agent Reply
     ${lifecycle.output} 
     `;
+
+    const { memoryId, summary, embedding } =
+      await this.createMemoryAndEmbeddings(
+        lifecycle.daemonId,
+        systemPrompt,
+        summaryPrompt,
+        lifecycle.channelId,
+        lifecycle
+      );
+
+    lifecycle.postProcess.push(
+      JSON.stringify({
+        server: this.server.name,
+        tool: "pp_createMemory",
+        args: {
+          memoryId,
+        },
+      })
+    );
+    return lifecycle;
+  }
+
+  private async createMemoryAndEmbeddings(
+    daemonId: string,
+    systemPrompt: string,
+    summaryPrompt: string,
+    channelId?: string,
+    lifecycle?: TYPES.IMessageLifecycle
+  ) {
     const summary = await generateText(
       this.modelInfo.generation,
       this.modelInfo.generation.apiKey!,
@@ -516,24 +567,19 @@ export class IdentityServerPostgres implements TYPES.IIdentityServer {
     const memoryId = nanoid();
     await this.db.insert(ContextServerSchema.memories).values({
       id: memoryId,
-      daemonId: lifecycle.daemonId,
-      channelId: lifecycle.channelId,
+      daemonId: daemonId,
+      channelId: channelId,
       createdAt: new Date(),
       content: summary,
       embedding: embedding,
       originalLifecycle: lifecycle,
     });
 
-    lifecycle.postProcess.push(
-      JSON.stringify({
-        server: this.server.name,
-        tool: "pp_createMemory",
-        args: {
-          memoryId,
-        },
-      })
-    );
-    return lifecycle;
+    return {
+      memoryId,
+      summary,
+      embedding,
+    };
   }
 }
 
@@ -571,7 +617,7 @@ const memories = {
   createdAt: timestamp("created_at").notNull(),
   content: text("content").notNull(),
   embedding: vector("embedding", { dimensions: 1 }).notNull(), // Dimensions is just a placeholder, gets overwrriten on creation
-  originalLifecycle: jsonb("original_lifecycle").notNull(),
+  originalLifecycle: jsonb("original_lifecycle"),
 };
 
 const logs = {
