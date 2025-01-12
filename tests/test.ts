@@ -1,7 +1,6 @@
 import { Keypair } from "@solana/web3.js";
-import { ContextServerPostgres } from "./ContextServerPostgres";
-import { Daemon } from "./daemon";
-import { sleep } from "bun";
+import { ContextServerPostgres } from "../packages/core/src/ContextServerPostgres";
+import { Daemon } from "../packages/core/src/daemon";
 
 const db = new ContextServerPostgres(
   {
@@ -18,7 +17,6 @@ const db = new ContextServerPostgres(
 
 await db.init();
 db.start();
-await sleep(1000);
 
 const Bob = new Daemon("http://localhost:8080/sse");
 

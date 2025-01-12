@@ -1,2 +1,2 @@
 export * from "./daemon";
-export * from "./ContextServerPostgres";
+export * from "./IdentityServerPostgres";

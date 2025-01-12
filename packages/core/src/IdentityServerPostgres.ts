@@ -1,13 +1,7 @@
 import { LiteMCP } from "litemcp";
 import { drizzle, NodePgDatabase } from "drizzle-orm/node-postgres";
 import { Pool, type PoolConfig } from "pg";
-import {
-  type Approval,
-  type Character,
-  type IContextServer,
-  type ILog,
-  type IMemory,
-} from "./types";
+import * as TYPES from "./types";
 import { eq, desc, asc, and, cosineDistance, gte } from "drizzle-orm";
 import { pgTable, timestamp } from "drizzle-orm/pg-core";
 import { jsonb, text, vector } from "drizzle-orm/pg-core";
@@ -24,7 +18,7 @@ import nacl from "tweetnacl";
  *  - Channel Memories
  *  - Channel Conversation Logs
  */
-export class ContextServerPostgres implements IContextServer {
+export class IdentityServerPostgres implements TYPES.IIdentityServer {
   private db: NodePgDatabase<typeof ContextServerSchema>;
   private server: LiteMCP;
 
@@ -155,17 +149,59 @@ export class ContextServerPostgres implements IContextServer {
       throw new Error("Context Server not initialized");
     }
 
+    // Server Info
+    this.server.addTool({
+      name: "getServerInfo",
+      description: "Get server info",
+      parameters: z.object({}),
+      execute: async () => {
+        return await this.getServerInfo();
+      },
+    });
+
+    // List Tools
+    this.server.addTool({
+      name: "listServerTools",
+      description: "List server tools",
+      parameters: z.object({}),
+      execute: async () => {
+        return await this.listServerTools();
+      },
+    });
+
+    this.server.addTool({
+      name: "listContextTools",
+      description: "List context tools",
+      parameters: z.object({}),
+      execute: async () => {
+        return await this.listContextTools();
+      },
+    });
+
+    this.server.addTool({
+      name: "listActionTools",
+      description: "List action tools",
+      parameters: z.object({}),
+      execute: async () => {
+        return await this.listActionTools();
+      },
+    });
+
+    this.server.addTool({
+      name: "listPostProcessTools",
+      description: "List post process tools",
+      parameters: z.object({}),
+      execute: async () => {
+        return await this.listPostProcessTools();
+      },
+    });
+
     // Server Tools
     this.server.addTool({
       name: "registerCharacter",
       description: "Register a new character",
-      parameters: z.object({
-        name: z.string(),
-        bio: z.array(z.string()),
-        lore: z.array(z.string()),
-        pubkey: z.string(),
-      }),
-      execute: async (character: Character) => {
+      parameters: TYPES.ZCharacter,
+      execute: async (character: TYPES.Character) => {
         return await this.registerCharacter(character);
       },
     });
@@ -203,6 +239,26 @@ export class ContextServerPostgres implements IContextServer {
       },
     });
 
+    // Context Tools
+    this.server.addTool({
+      name: "fetchMemoryContext",
+      description: "Fetch memory context",
+      parameters: z.object({
+        daemonId: z.string(),
+        messageEmbedding: z.array(z.number()),
+        limit: z.number(),
+        similarityThreshold: z.number().optional(),
+        channelId: z.string().optional(),
+      }),
+      execute: async (args) => {
+        return {
+          type: "text",
+          text: JSON.stringify(await this.fetchMemoryContext(args)),
+        };
+      },
+    });
+    // Action Tools
+    // Post Process Tools
     this.server.addTool({
       name: "createMemory",
       description: "Create a memory",
@@ -220,24 +276,6 @@ export class ContextServerPostgres implements IContextServer {
       }),
       execute: async (args) => {
         return await this.createMemory(args.opts, args.approval);
-      },
-    });
-
-    this.server.addTool({
-      name: "fetchMemoryContext",
-      description: "Fetch memory context",
-      parameters: z.object({
-        daemonId: z.string(),
-        messageEmbedding: z.array(z.number()),
-        limit: z.number(),
-        similarityThreshold: z.number().optional(),
-        channelId: z.string().optional(),
-      }),
-      execute: async (args) => {
-        return {
-          type: "text",
-          text: JSON.stringify(await this.fetchMemoryContext(args)),
-        };
       },
     });
 
@@ -277,7 +315,109 @@ export class ContextServerPostgres implements IContextServer {
     // TODO: Placeholder to do things here;
   }
 
-  async registerCharacter(character: Character): Promise<string> {
+  // Server Info
+  async getServerInfo(): Promise<{ name: string; description: string }> {
+    return {
+      name: "Daemon Identity Server",
+      description:
+        "Identity Server for Daemon Framework that manages characters and memories",
+    };
+  }
+
+  // List Tools
+  async listServerTools(): Promise<TYPES.Tool[]> {
+    return [
+      {
+        name: "registerCharacter",
+        description: "Register a new character",
+        type: "Server",
+        inputParameters: [
+          {
+            name: "character",
+            description: "The character to register",
+            type: "object",
+          },
+        ],
+      },
+      {
+        name: "fetchCharacter",
+        description: "Fetch a character",
+        type: "Server",
+        inputParameters: [
+          {
+            name: "daemonId",
+            description: "The daemon ID",
+            type: "string",
+          },
+        ],
+      },
+      {
+        name: "fetchLogs",
+        description: "Fetch logs",
+        type: "Server",
+        inputParameters: [
+          {
+            name: "daemonId",
+            description: "The daemon ID",
+            type: "string",
+          },
+        ],
+      },
+    ];
+  }
+
+  async listContextTools(): Promise<TYPES.Tool[]> {
+    return [
+      {
+        name: "fetchMemoryContext",
+        description: "Fetch memory context",
+        type: "Context",
+        inputParameters: [
+          {
+            name: "daemonId",
+            description: "The daemon ID",
+            type: "string",
+          },
+        ],
+      },
+    ];
+  }
+
+  async listActionTools(): Promise<TYPES.Tool[]> {
+    return [];
+  }
+
+  async listPostProcessTools(): Promise<TYPES.Tool[]> {
+    return [
+      {
+        name: "createLog",
+        description: "Create a log",
+        type: "PostProcess",
+        inputParameters: [
+          {
+            name: "log",
+            description: "The log to create",
+            type: "object",
+          },
+        ],
+      },
+      {
+        name: "createMemory",
+        description: "Create a memory",
+        type: "PostProcess",
+        inputParameters: [
+          {
+            name: "opts",
+            description: "The options for the memory",
+            type: "object",
+          },
+        ],
+      },
+    ];
+  }
+
+  // Server Tools
+  async registerCharacter(character: TYPES.Character): Promise<string> {
     if (!this.initialized) {
       throw new Error("Context Server not initialized");
     }
@@ -291,7 +431,7 @@ export class ContextServerPostgres implements IContextServer {
     return daemonId;
   }
 
-  async fetchCharacter(daemonId: string): Promise<Character | undefined> {
+  async fetchCharacter(daemonId: string): Promise<TYPES.Character | undefined> {
     if (!this.initialized) {
       throw new Error("Context Server not initialized");
     }
@@ -301,7 +441,7 @@ export class ContextServerPostgres implements IContextServer {
       .from(ContextServerSchema.daemons)
       .where(eq(ContextServerSchema.daemons.id, daemonId))
       .execute();
-    return character[0]?.character as Character | undefined;
+    return character[0]?.character as TYPES.Character | undefined;
   }
 
   async fetchLogs(opts: {
@@ -309,7 +449,7 @@ export class ContextServerPostgres implements IContextServer {
     channelId?: string;
     limit?: number;
     orderBy?: "asc" | "desc";
-  }): Promise<ILog[]> {
+  }): Promise<TYPES.ILog[]> {
     if (!this.initialized) {
       throw new Error("Context Server not initialized");
     }
@@ -332,13 +472,14 @@ export class ContextServerPostgres implements IContextServer {
     }));
   }
 
+  // Context Tools
   async fetchMemoryContext(opts: {
     daemonId: string;
     messageEmbedding: number[];
     limit: number;
     similarityThreshold?: number;
     channelId?: string;
-  }): Promise<IMemory[]> {
+  }): Promise<TYPES.IMemory[]> {
     if (!this.initialized) {
       throw new Error("Context Server not initialized");
     }
@@ -372,7 +513,10 @@ export class ContextServerPostgres implements IContextServer {
     }));
   }
 
-  async createLog(log: ILog, approval: Approval): Promise<void> {
+  // Action Tools
+
+  // Post Process Tools
+  async createLog(log: TYPES.ILog, approval: TYPES.IApproval): Promise<void> {
     if (!this.initialized) {
       throw new Error("Context Server not initialized");
     }
@@ -406,7 +550,7 @@ export class ContextServerPostgres implements IContextServer {
       channelId?: string;
       originationLogIds?: string[];
     },
-    approval: Approval
+    approval: TYPES.IApproval
   ): Promise<string> {
     if (!this.initialized) {
       throw new Error("Context Server not initialized");
@@ -446,7 +590,11 @@ export class ContextServerPostgres implements IContextServer {
   }
 }
 
-const checkApproval = (opts: any, publicKey: string, approval: Approval) => {
+const checkApproval = (
+  opts: any,
+  publicKey: string,
+  approval: TYPES.IApproval
+) => {
   const hasher = new Bun.CryptoHasher("sha256");
   const message = JSON.stringify(opts, null, 0);
   hasher.update(message);
