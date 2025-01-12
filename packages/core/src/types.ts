@@ -4,11 +4,11 @@ import type { Keypair } from "@solana/web3.js";
 import { z } from "zod";
 
 export const ZModelSettings = z.object({
-  provider: z.string(), // OpenAI, Anthropic, etc.
-  name: z.string(), // gpt-4o, claude-3-5-sonnet, etc.
-  temperature: z.number(),
-  maxTokens: z.number(),
+  provider: z.enum(["openai", "anthropic"]),
   endpoint: z.string(),
+  name: z.string(), // gpt-4o, claude-3-5-sonnet, etc.
+  temperature: z.number().optional(),
+  maxTokens: z.number().optional(),
 });
 
 export type ModelSettings = z.infer<typeof ZModelSettings>;
@@ -20,7 +20,7 @@ export const ZCharacter = z.object({
   modelSettings: z.object({
     generation: ZModelSettings,
     // Used to embed the message into a vector space
-    embedding: ZModelSettings.optional(), // use generation if not set
+    embedding: ZModelSettings, // use generation if not set
   }),
   bio: z.array(z.string()).optional(),
   lore: z.array(z.string()).optional(),

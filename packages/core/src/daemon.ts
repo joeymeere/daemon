@@ -271,7 +271,7 @@ export class Daemon implements IDaemon {
     };
 
     // Generate Embeddings
-    lifecycle = await generateEmbeddings(lifecycle);
+    lifecycle = await generateEmbeddings(this, lifecycle);
 
     if (context) {
       for (const tool of this.tools.context) {
@@ -283,7 +283,7 @@ export class Daemon implements IDaemon {
     }
 
     // Generate Text
-    lifecycle = await generateText(lifecycle);
+    lifecycle = await generateText(this, lifecycle);
 
     if (actions) {
       for (const tool of this.tools.action) {
