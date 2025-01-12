@@ -124,6 +124,7 @@ export interface ToolRegistration {
 
 export const ZMessageLifecycle = z.object({
   message: z.string(),
+  channelId: z.string().optional(),
   systemPrompt: z.string().optional(),
   embedding: z.array(z.number()).optional(),
   context: z.array(z.string()).optional(),

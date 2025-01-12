@@ -259,9 +259,10 @@ export class Daemon implements IDaemon {
     const actions = opts?.actions ?? true;
     const postProcess = opts?.postProcess ?? true;
 
-    // Lifecycle: message -> fetchConext -> generateText -> takeActions -> postProcess
+    // Lifecycle: message -> fetchContext -> generateText -> takeActions -> postProcess
     let lifecycle: IMessageLifecycle = {
       message,
+      channelId: opts?.channelId,
       systemPrompt: this.character?.systemPrompt,
       embedding: [],
       context: [],
