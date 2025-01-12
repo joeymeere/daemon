@@ -1,4 +1,4 @@
-import type { Character, IDaemon, ToolRegistration, Tool } from "./types";
+import type { Character, IDaemon, ToolRegistration, ITool } from "./types";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { SSEClientTransport } from "./SSEClientTransport.js";
 import type { TextContent } from "@modelcontextprotocol/sdk/types.js";
@@ -10,11 +10,9 @@ export class Daemon implements IDaemon {
   keypair: Keypair | undefined;
   modelApiKeys: {
     generationKey: string | undefined;
-    decisionKey: string | undefined;
     embeddingKey: string | undefined;
   } = {
     generationKey: undefined,
-    decisionKey: undefined,
     embeddingKey: undefined,
   };
 
@@ -47,74 +45,48 @@ export class Daemon implements IDaemon {
     privateKey: Keypair;
     modelApiKeys: {
       generationKey: string;
-      decisionKey: string;
-      embeddingKey: string;
+      embeddingKey?: string;
     };
   }) {
-    this.modelApiKeys = opts.modelApiKeys;
+    this.modelApiKeys = {
+      generationKey: opts.modelApiKeys.generationKey,
+      embeddingKey:
+        opts.modelApiKeys.embeddingKey ?? opts.modelApiKeys.generationKey,
+    };
+
     await this.addMCPServer({ url: opts.contextServerUrl });
 
     if (opts.id) {
       // If id, then fetch character from Context Server
       try {
-        const serverUrl = this.tools.server.find(
-          (tool) => tool.tool.name === "fetchCharacter"
-        )?.serverUrl;
+        const result = await this.callTool(
+          "fetchCharacter",
+          opts.contextServerUrl,
+          {
+            id: opts.id,
+          }
+        );
 
-        if (!serverUrl) {
-          throw new Error("No server url found");
-        }
-
-        const client = this.mcpClients[serverUrl].client;
-
-        const result = (
-          await client.callTool({
-            name: "fetchCharacter",
-            arguments: {
-              id: opts.id,
-            },
-          })
-        ).content as TextContent[];
-
-        if (result[0].text.includes("Error")) {
-          throw new Error(result[0].text);
-        } else {
-          this.character = JSON.parse(result[0].text) as Character;
-          this.keypair = opts.privateKey;
-          this.id = opts.id;
-        }
+        this.character = result as Character;
+        this.keypair = opts.privateKey;
+        this.id = opts.id;
       } catch (e) {
         throw new Error("Failed to fetch character");
       }
     } else if (opts.character) {
       // If character, then register character in Context Server
       try {
-        const serverUrl = this.tools.server.find(
-          (tool) => tool.tool.name === "registerCharacter"
-        )?.serverUrl;
+        const result = await this.callTool(
+          "registerCharacter",
+          opts.contextServerUrl,
+          {
+            ...opts.character,
+          }
+        );
 
-        if (!serverUrl) {
-          throw new Error("No server url found");
-        }
-
-        const client = this.mcpClients[serverUrl].client;
-
-        const result = (
-          await client.callTool({
-            name: "registerCharacter",
-            arguments: {
-              ...opts.character,
-            },
-          })
-        ).content as TextContent[];
-
-        if (result[0].text.includes("Error")) {
-          throw new Error(result[0].text);
-        } else {
-          this.id = result[0].text;
-          this.character = opts.character;
-          this.keypair = opts.privateKey;
-        }
+        this.id = result.id;
+        this.character = opts.character;
+        this.keypair = opts.privateKey;
       } catch (e) {
         throw new Error("Failed to register character");
       }
@@ -135,8 +107,9 @@ export class Daemon implements IDaemon {
     await client.connect(new SSEClientTransport(new URL(opts.url)));
 
     // Server Info
-    const serverInfoResult = (await client.callTool({ name: "getServerInfo" }))
-      .content as TextContent[];
+    const serverInfoResult = (
+      await client.callTool({ name: "getServerInfo", arguments: {} })
+    ).content as TextContent[];
 
     if (serverInfoResult[0].text.includes("Error")) {
       throw new Error(serverInfoResult[0].text);
@@ -148,31 +121,37 @@ export class Daemon implements IDaemon {
     };
 
     // Server Tools
-    const serverTools = (await client.callTool({ name: "listServerTools" }))
-      .content as TextContent[];
+    const serverTools = (
+      await client.callTool({ name: "listServerTools", arguments: {} })
+    ).content as TextContent[];
 
     if (serverTools[0].text.includes("Error")) {
       throw new Error(serverTools[0].text);
     }
 
-    const serverToolList = JSON.parse(serverTools[0].text) as Tool[];
+    const serverToolList = JSON.parse(serverTools[0].text) as ITool[];
 
     // Context Tools
-    const contextTools = (await client.callTool({ name: "listContextTools" }))
-      .content as TextContent[];
+    const contextTools = (
+      await client.callTool({ name: "listContextTools", arguments: {} })
+    ).content as TextContent[];
 
-    const contextToolList = JSON.parse(contextTools[0].text) as Tool[];
+    const contextToolList = JSON.parse(contextTools[0].text) as ITool[];
 
     // Action Tools
-    const actionTools = (await client.callTool({ name: "listActionTools" }))
-      .content as TextContent[];
-    const actionToolList = JSON.parse(actionTools[0].text) as Tool[];
+    const actionTools = (
+      await client.callTool({ name: "listActionTools", arguments: {} })
+    ).content as TextContent[];
+    const actionToolList = JSON.parse(actionTools[0].text) as ITool[];
 
     // Post Process Tools
     const postProcessTools = (
-      await client.callTool({ name: "listPostProcessTools" })
+      await client.callTool({
+        name: "listPostProcessTools",
+        arguments: {},
+      })
     ).content as TextContent[];
-    const postProcessToolList = JSON.parse(postProcessTools[0].text) as Tool[];
+    const postProcessToolList = JSON.parse(postProcessTools[0].text) as ITool[];
 
     this.mcpClients[opts.url] = {
       name: serverInfo.name,
@@ -215,5 +194,63 @@ export class Daemon implements IDaemon {
         };
       })
     );
+  }
+
+  async removeMCPServer(opts: { url: string }): Promise<void> {
+    delete this.mcpClients[opts.url];
+    this.tools.server = this.tools.server.filter(
+      (tool) => tool.serverUrl !== opts.url
+    );
+    this.tools.context = this.tools.context.filter(
+      (tool) => tool.serverUrl !== opts.url
+    );
+    this.tools.action = this.tools.action.filter(
+      (tool) => tool.serverUrl !== opts.url
+    );
+    this.tools.postProcess = this.tools.postProcess.filter(
+      (tool) => tool.serverUrl !== opts.url
+    );
+  }
+
+  private async callTool(
+    toolName: string,
+    toolURL: string,
+    args: any
+  ): Promise<any> {
+    const client = this.mcpClients[toolURL].client;
+
+    const result = (
+      await client.callTool({
+        name: toolName,
+        arguments: args,
+      })
+    ).content as TextContent[];
+
+    if (result[0].text.includes("Error")) {
+      throw new Error(result[0].text);
+    } else {
+      return JSON.parse(result[0].text);
+    }
+  }
+
+  async message(
+    message: string,
+    opts?: {
+      channelId?: string;
+      context?: boolean;
+      actions?: boolean;
+      postProcess?: boolean;
+    }
+  ): Promise<void> {
+    const context = opts?.context ?? true;
+    const actions = opts?.actions ?? true;
+    const postProcess = opts?.postProcess ?? true;
+
+    // Lifecycle: message -> fetchConext -> generateText -> takeActions -> postProcess
+    let systemPrompt = this.character?.systemPrompt;
+    let prompt = `
+    # Message
+    ${message}
+    `;
   }
 }

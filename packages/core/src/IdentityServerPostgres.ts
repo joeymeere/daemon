@@ -325,7 +325,7 @@ export class IdentityServerPostgres implements TYPES.IIdentityServer {
   }
 
   // List Tools
-  async listServerTools(): Promise<TYPES.Tool[]> {
+  async listServerTools(): Promise<TYPES.ITool[]> {
     return [
       {
         name: "registerCharacter",
@@ -366,7 +366,7 @@ export class IdentityServerPostgres implements TYPES.IIdentityServer {
     ];
   }
 
-  async listContextTools(): Promise<TYPES.Tool[]> {
+  async listContextTools(): Promise<TYPES.ITool[]> {
     return [
       {
         name: "fetchMemoryContext",
@@ -383,11 +383,11 @@ export class IdentityServerPostgres implements TYPES.IIdentityServer {
     ];
   }
 
-  async listActionTools(): Promise<TYPES.Tool[]> {
+  async listActionTools(): Promise<TYPES.ITool[]> {
     return [];
   }
 
-  async listPostProcessTools(): Promise<TYPES.Tool[]> {
+  async listPostProcessTools(): Promise<TYPES.ITool[]> {
     return [
       {
         name: "createLog",

@@ -1,4 +1,5 @@
 import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import type { Tool } from "@modelcontextprotocol/sdk/types";
 import type { Keypair } from "@solana/web3.js";
 import { z } from "zod";
 
@@ -21,8 +22,6 @@ export const ZCharacter = z.object({
   // Model Settings
   modelSettings: z.object({
     generation: ZModelSettings,
-    // Used to decide what tools to use to build context for Generation
-    decision: ZModelSettings.optional(), // use generation if not set
     // Used to embed the message into a vector space
     embedding: ZModelSettings.optional(), // use generation if not set
   }),
@@ -72,7 +71,7 @@ const ZTool = z.object({
   ),
 });
 
-export type Tool = z.infer<typeof ZTool>;
+export type ITool = z.infer<typeof ZTool>;
 
 export interface IDaemonMCPServer {
   // Server Info
@@ -81,10 +80,10 @@ export interface IDaemonMCPServer {
     description: string;
   }>;
   // List Tools
-  listServerTools(): Promise<Tool[]>;
-  listContextTools(): Promise<Tool[]>;
-  listActionTools(): Promise<Tool[]>;
-  listPostProcessTools(): Promise<Tool[]>;
+  listServerTools(): Promise<ITool[]>;
+  listContextTools(): Promise<ITool[]>;
+  listActionTools(): Promise<ITool[]>;
+  listPostProcessTools(): Promise<ITool[]>;
 }
 
 export interface IIdentityServer extends IDaemonMCPServer {
@@ -120,8 +119,18 @@ export interface IIdentityServer extends IDaemonMCPServer {
 
 export interface ToolRegistration {
   serverUrl: string;
-  tool: Tool;
+  tool: ITool;
 }
+
+export const ZMessageLifecyle = z.object({
+  message: z.string(),
+  context: z.array(z.string()).optional(),
+  output: z.string().optional(),
+  actions: z.array(z.string()).optional(),
+  postProcess: z.array(z.string()).optional(),
+});
+
+export type IMessageLifecyle = z.infer<typeof ZMessageLifecyle>;
 
 export interface IDaemon {
   // Properties
@@ -141,17 +150,32 @@ export interface IDaemon {
     action: ToolRegistration[];
     postProcess: ToolRegistration[];
   };
+  modelApiKeys: {
+    generationKey: string | undefined;
+    embeddingKey: string | undefined;
+  };
 
   // Methods
   init(opts: {
     id?: string;
     character?: Character;
     privateKey: Keypair;
+    modelApiKeys: {
+      generationKey: string;
+      embeddingKey?: string;
+    };
   }): Promise<void>;
 
   addMCPServer(opts: { url: string }): Promise<void>;
-  /*   message(
+  removeMCPServer(opts: { url: string }): Promise<void>;
+
+  message(
     message: string,
-    opts?: { stateless?: boolean; channelId?: string }
-  ): Promise<void>; */
+    opts?: {
+      channelId?: string;
+      context?: boolean;
+      actions?: boolean;
+      postProcess?: boolean;
+    }
+  ): Promise<void>;
 }
