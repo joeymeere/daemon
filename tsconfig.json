@@ -12,7 +12,8 @@
     "moduleResolution": "node",
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
-    "noEmit": true,
+
+    "allowSyntheticDefaultImports": true,
 
     // Best practices
     "strict": true,
@@ -22,6 +23,12 @@
     // Some stricter flags (disabled by default)
     "noUnusedLocals": false,
     "noUnusedParameters": false,
-    "noPropertyAccessFromIndexSignature": false
-  }
+    "noPropertyAccessFromIndexSignature": false,
+
+    "declaration": true,
+    "declarationMap": true,
+    "emitDeclarationOnly": true
+  },
+  "include": ["packages/**/*.ts"],
+  "exclude": ["node_modules", "dist", "client"]
 }

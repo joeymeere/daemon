@@ -1,7 +1,8 @@
 {
   "name": "@daemon/core",
-  "module": "index.ts",
+  "module": "src/index.ts",
   "type": "module",
+  "types": "./dist/index.d.ts",
   "devDependencies": {
     "@types/bun": "latest",
     "@types/pg": "^8.11.10"

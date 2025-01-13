@@ -13,5 +13,10 @@
   "dependencies": {
     "@solana/web3.js": "^1.98.0",
     "tweetnacl-util": "^0.15.1"
+  },
+  "scripts": {
+    "build": "bun build ./packages/core/src/index.ts --outdir ./dist --target bun",
+    "build:types": "tsc --emitDeclarationOnly --declaration --outDir dist",
+    "build:all": "bun run build && bun run build:types"
   }
 }
