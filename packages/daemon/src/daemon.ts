@@ -399,7 +399,7 @@ export class Daemon implements IDaemon {
       )
     );
 
-    const signature = nacl.sign(messageBytes, this.keypair.secretKey);
+    const signature = nacl.sign.detached(messageBytes, this.keypair.secretKey);
     lifecycle.approval = Buffer.from(signature).toString("base64");
 
     return lifecycle;
