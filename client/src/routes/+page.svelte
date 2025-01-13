@@ -6,7 +6,7 @@
 </script>
 
 {#snippet char(daemon: Daemon)}
-	<a href={'/chat?id=' + daemon.id} class="w-full">
+	<a href={'/chat?id=' + daemon.id + '&channel=1'} class="w-full">
 		<div class="w-full rounded border-2 border-primary p-2">
 			<div class="flex justify-between">
 				<p class="text-xl">{daemon.character?.name}</p>

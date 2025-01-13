@@ -38,8 +38,8 @@
 			contextServerUrl: `http://localhost:5173/api`,
 			privateKey: keypair,
 			modelApiKeys: {
-				generationKey: apiKey ?? process.env.OPENAI_API_KEY!,
-				embeddingKey: apiKey ?? process.env.OPENAI_API_KEY!
+				generationKey: apiKey ?? '',
+				embeddingKey: apiKey ?? ''
 			}
 		});
 
