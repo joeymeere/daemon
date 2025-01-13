@@ -8,7 +8,7 @@ export const ZMessageLifecycle = z.object({
   createdAt: z.string(),
   approval: z.string(),
   channelId: z.string().nullable(),
-  systemPrompt: z.string().nullable(),
+  identityPrompt: z.string().nullable(),
   embedding: z.array(z.number()).default([]),
   context: z.array(z.string()).default([]),
   output: z.string().default(""),
@@ -41,7 +41,7 @@ export const ZCharacter = z.object({
   }),
   bio: z.array(z.string()).optional(),
   lore: z.array(z.string()).optional(),
-  systemPrompt: z.string().optional(),
+  identityPrompt: z.string().optional(),
 });
 
 export type Character = z.infer<typeof ZCharacter>;

@@ -2,6 +2,12 @@ import OpenAI from "openai";
 import type { IMessageLifecycle, ModelSettings } from "./types";
 import Anthropic from "@anthropic-ai/sdk";
 
+export const SYSTEM_PROMPT = `
+            You are a growing and adapting AI agent.
+            You are able to learn from your experiences and adapt your behavior to new situations. 
+            You are able to take in new input and make new memories and use those memories to make decisions.
+            `;
+
 export async function generateEmbeddings(
   embeddingModelSettings: ModelSettings,
   embeddingModelKey: string,
@@ -44,11 +50,7 @@ export async function generateText(
         messages: [
           {
             role: "system",
-            content: `
-            You are a growing and adapting AI agent.
-            You are able to learn from your experiences and adapt your behavior to new situations. 
-            You are able to take in new input and make new memories and use those memories to make decisions.
-            `,
+            content: SYSTEM_PROMPT,
           },
           {
             role: "user",
@@ -73,7 +75,7 @@ export async function generateText(
 
       const anthropicResponse = await anthropic.messages.create({
         model: generationModelSettings.name,
-        system: systemPrompt,
+        system: SYSTEM_PROMPT,
         messages: [
           {
             role: "user",

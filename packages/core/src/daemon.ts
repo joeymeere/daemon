@@ -14,7 +14,7 @@ import { createPrompt, generateEmbeddings, generateText } from "./llm.js";
 import nacl from "tweetnacl";
 import { decodeUTF8, encodeBase64 } from "tweetnacl-util";
 
-const DEFAULT_SYSTEM_PROMPT = (daemon: IDaemon) => {
+const DEFAULT_IDENTITY_PROMPT = (daemon: IDaemon) => {
   return `
   You are ${daemon.character?.name}. Keep your responses concise and to the point.
   `;
@@ -292,7 +292,7 @@ export class Daemon implements IDaemon {
       createdAt: new Date().toISOString(),
       approval: "",
       channelId: opts?.channelId ?? null,
-      systemPrompt: this.character?.systemPrompt ?? null,
+      identityPrompt: this.character?.identityPrompt ?? null,
       embedding: [],
       context: [],
       output: "",
@@ -335,7 +335,7 @@ export class Daemon implements IDaemon {
     lifecycle.output = await generateText(
       this.character.modelSettings.generation,
       this.modelApiKeys.generationKey,
-      this.character.systemPrompt ?? DEFAULT_SYSTEM_PROMPT(this),
+      this.character.identityPrompt ?? DEFAULT_IDENTITY_PROMPT(this),
       createPrompt(lifecycle)
     );
 
