@@ -1,0 +1,49 @@
+name: Build and Publish Packages
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build all packages
+        run: bun run build:all
+
+      - name: Configure npm
+        run: |
+          echo "@daemon:registry=https://npm.pkg.github.com" > .npmrc
+          echo "//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}" >> .npmrc
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish workspace packages
+        run: |
+          for pkg in packages/*; do
+            if [ -f "$pkg/package.json" ]; then
+              echo "Publishing $pkg"
+              cd $pkg
+              npm publish --access public
+              cd ../..
+            fi
+          done
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
