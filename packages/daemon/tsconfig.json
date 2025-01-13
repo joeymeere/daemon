@@ -27,6 +27,6 @@
     "declarationMap": true,
     "emitDeclarationOnly": true
   },
-  "include": ["src/**/*.ts"],
-  "exclude": ["node_modules", "dist"]
+  "outDir": "./dist",
+  "include": ["./src/**/*.ts"]
 }

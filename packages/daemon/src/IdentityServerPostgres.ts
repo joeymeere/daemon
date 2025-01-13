@@ -1,6 +1,5 @@
 import { LiteMCP } from "litemcp";
-import { drizzle, NodePgDatabase } from "drizzle-orm/node-postgres";
-import { Pool, type PoolConfig } from "pg";
+import { drizzle, PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import * as TYPES from "./types";
 import { eq, desc, asc, and, cosineDistance, gte } from "drizzle-orm";
 import { pgTable, timestamp } from "drizzle-orm/pg-core";
@@ -21,7 +20,7 @@ import { generateText, generateEmbeddings } from "./llm";
  *  - Channel Conversation Logs
  */
 export class IdentityServerPostgres implements TYPES.IIdentityServer {
-  private db: NodePgDatabase<typeof ContextServerSchema>;
+  private db: PostgresJsDatabase<typeof ContextServerSchema>;
   private server: LiteMCP;
 
   private modelInfo: {
@@ -32,11 +31,19 @@ export class IdentityServerPostgres implements TYPES.IIdentityServer {
   private initialized: boolean = false;
 
   constructor(
-    pgOpts: PoolConfig,
+    pgOpts: {
+      url?: string;
+      host?: string;
+      port?: number;
+      user?: string;
+      password?: string;
+      database?: string;
+    },
     modelInfo: typeof this.modelInfo,
     serverOpts?: { name?: string }
   ) {
-    this.db = drizzle(new Pool(pgOpts), {
+    this.db = drizzle({
+      connection: pgOpts,
       schema: ContextServerSchema,
       casing: "snake_case",
     });

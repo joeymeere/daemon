@@ -11,7 +11,7 @@ import type { TextContent } from "@modelcontextprotocol/sdk/types.js";
 import type { Keypair } from "@solana/web3.js";
 import { createPrompt, generateEmbeddings, generateText } from "./llm.js";
 import nacl from "tweetnacl";
-import { decodeUTF8, encodeBase64 } from "tweetnacl-util";
+import { decodeUTF8 } from "tweetnacl-util";
 
 const DEFAULT_IDENTITY_PROMPT = (daemon: IDaemon) => {
   return `
