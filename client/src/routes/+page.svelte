@@ -1,14 +1,27 @@
 <script lang="ts">
-	import { updateDaemons, daemonStore } from '$lib/stores/daemon.svelte';
+	import { daemonStore } from '$lib/stores/daemon.svelte';
 	import { Daemon } from '@spacemangaming/daemon';
+
+	console.log($daemonStore);
 </script>
 
 {#snippet char(daemon: Daemon)}
 	<a href={'/chat?id=' + daemon.id} class="w-full">
 		<div class="w-full rounded border-2 border-primary p-2">
-			<p class="text-xl">{daemon.character?.name}</p>
+			<div class="flex justify-between">
+				<p class="text-xl">{daemon.character?.name}</p>
+				<p>
+					{daemon.id}
+				</p>
+			</div>
 			<p>
-				{daemon.id}
+				{daemon.character?.bio}
+			</p>
+			<p>
+				{daemon.character?.lore}
+			</p>
+			<p>
+				{daemon.character?.identityPrompt}
 			</p>
 		</div>
 	</a>

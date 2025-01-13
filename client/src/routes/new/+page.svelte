@@ -1,80 +1,107 @@
 <script lang="ts">
+	import { updateDaemons } from '$lib/stores/daemon.svelte';
 	import { Keypair } from '@solana/web3.js';
 	import { Daemon, type Character } from '@spacemangaming/daemon';
-	import { onMount } from 'svelte';
-	import { Bob as CharJson } from './bob';
 
-	let isMultiple = false;
-	let name = '';
-	let personality = '';
-	let char: Daemon | null = null;
+	let name = $state('');
+	let bio = $state('');
+	let lore = $state('');
+	let identityPrompt = $state('');
+	let char: Daemon | null = $state(null);
+	let apiKey: string | null = $state(null);
 
-	onMount(async () => {
-		char = new Daemon();
+	async function createDaemon() {
+		const dae = new Daemon();
 		const keypair = Keypair.generate();
-		const character = CharJson as Character;
-		character.pubkey = keypair.publicKey.toBase58();
+		const character = {
+			name: name,
+			pubkey: keypair.publicKey.toBase58(),
+			modelSettings: {
+				generation: {
+					provider: 'openai',
+					endpoint: 'https://api.openai.com/v1',
+					name: 'gpt-4o'
+				},
+				embedding: {
+					provider: 'openai',
+					endpoint: 'https://api.openai.com/v1',
+					name: 'text-embedding-3-small'
+				}
+			},
+			bio: [bio],
+			lore: [lore],
+			identityPrompt: identityPrompt
+		} as Character;
 
-		await char.init({
+		await dae.init({
 			character,
 			contextServerUrl: `http://localhost:5173/api`,
 			privateKey: keypair,
 			modelApiKeys: {
-				generationKey: process.env.OPENAI_API_KEY!,
-				embeddingKey: process.env.OPENAI_API_KEY!
+				generationKey: apiKey ?? process.env.OPENAI_API_KEY!,
+				embeddingKey: apiKey ?? process.env.OPENAI_API_KEY!
 			}
 		});
-	});
 
-	$: amountOfDaemons = name.split(',').length;
-	$: if (amountOfDaemons > 1) {
-		isMultiple = true;
-	} else {
-		isMultiple = false;
+		char = dae;
+
+		console.log({ dae, char });
+
+		updateDaemons.addDaemon(char);
 	}
 </script>
 
 <div class="flex h-full flex-col gap-4">
+	<a href="/">Back to Home</a>
 	<p class="mx-auto pt-2 text-xl">Create a new daemon</p>
 
-	<div class="mx-auto">
-		<label class="inline-flex cursor-pointer items-center gap-2">
-			<span class="ms-3 text-sm font-medium text-gray-900 dark:text-gray-300">Single Daemon</span>
-			<input type="checkbox" value="" class="peer sr-only" bind:checked={isMultiple} />
-			<div
-				class="peer relative h-6 w-11 rounded-full bg-gray-200 after:absolute after:start-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-blue-600 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rtl:peer-checked:after:-translate-x-full dark:border-gray-600 dark:bg-gray-700 dark:peer-focus:ring-blue-800"
-			></div>
-			<span class="ms-3 text-sm font-medium text-gray-900 dark:text-gray-300">Multiple Daemons</span
-			>
-		</label>
+	<div class="w-full">
+		<p>apiKey</p>
+		<input
+			bind:value={apiKey}
+			class="w-full p-1 text-secondary placeholder:text-secondary placeholder:opacity-50"
+			placeholder="openAi apikey"
+		/>
 	</div>
 
 	<div class="w-full">
-		<p>Name{isMultiple ? 's' : ''}</p>
-		{#if isMultiple}
-			<textarea
-				bind:value={name}
-				class="w-full p-1 text-secondary placeholder:text-secondary placeholder:opacity-50"
-				placeholder="Enter names seperated by commas"
-			></textarea>
-		{:else}
-			<input
-				bind:value={name}
-				class="w-full p-1 text-secondary placeholder:text-secondary placeholder:opacity-50"
-				placeholder="What's my name?"
-			/>
-		{/if}
+		<p>Name</p>
+		<input
+			bind:value={name}
+			class="w-full p-1 text-secondary placeholder:text-secondary placeholder:opacity-50"
+			placeholder="What's my name?"
+		/>
+	</div>
+
+	<div class="w-full">
+		<p>Bio</p>
+		<input
+			bind:value={bio}
+			class="w-full p-1 text-secondary placeholder:text-secondary placeholder:opacity-50"
+			placeholder="What's my bio?"
+		/>
+	</div>
+
+	<div class="w-full">
+		<p>Lore</p>
+		<input
+			bind:value={lore}
+			class="w-full p-1 text-secondary placeholder:text-secondary placeholder:opacity-50"
+			placeholder="What's my background lore?"
+		/>
 	</div>
 	<div class="w-full">
 		<p>Personality</p>
 		<textarea
-			bind:value={personality}
+			bind:value={identityPrompt}
 			class="w-full p-1 text-secondary placeholder:text-secondary placeholder:opacity-50"
-			placeholder="what defines my personality"
+			placeholder="what defines my personality identity?"
 		></textarea>
 	</div>
 
-	<button>
-		Create {name.split(',').length} daemon{amountOfDaemons > 1 ? 's' : ''}
-	</button>
+	<button onclick={createDaemon}> Create Daemon </button>
+
+	<p>
+		{JSON.stringify(char)}
+	</p>
 </div>

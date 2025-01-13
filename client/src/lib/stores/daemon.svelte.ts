@@ -6,7 +6,10 @@ export const daemonStore: Writable<Daemon[]> = writable([]);
 export const updateDaemons = {
 	addDaemon: (daemon: Daemon | null) => {
 		daemonStore.update((state) => {
-			if (!daemon) return state;
+			if (!daemon) {
+				console.error('daemon is null');
+				return state;
+			}
 			return [...state, daemon];
 		});
 	}
