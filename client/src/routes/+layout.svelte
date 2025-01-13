@@ -13,6 +13,6 @@
 	});
 </script>
 
-<div class="font-syne-mono flex h-screen w-screen flex-col">
+<div class="flex h-screen w-screen flex-col font-syne-mono">
 	{@render children()}
 </div>

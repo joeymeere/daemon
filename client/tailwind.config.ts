@@ -7,6 +7,12 @@ export default {
 		extend: {
 			fontFamily: {
 				'syne-mono': ['Syne Mono', 'monospace']
+			},
+			colors: {
+				primary: '#FFF9EB',
+				secondary: '#353535',
+				highlight: '#F3E9D2',
+				cta: '#558173'
 			}
 		}
 	},
