@@ -264,6 +264,9 @@ export class Daemon implements IDaemon {
       context?: boolean;
       actions?: boolean;
       postProcess?: boolean;
+      toolArgs?: {
+        [key: string]: any; // key = `serverUrl-toolName`
+      };
     }
   ): Promise<IMessageLifecycle> {
     if (!this.id) {
@@ -310,8 +313,13 @@ export class Daemon implements IDaemon {
     if (context) {
       let contextPromises: Promise<IMessageLifecycle>[] = [];
       for (const tool of this.tools.context) {
+        const toolArgs =
+          opts?.toolArgs?.[`${tool.serverUrl}-${tool.tool.name}`];
         contextPromises.push(
-          this.callTool(tool.tool.name, tool.serverUrl, lifecycle)
+          this.callTool(tool.tool.name, tool.serverUrl, {
+            lifecycle,
+            args: toolArgs,
+          })
         );
       }
 
@@ -334,8 +342,13 @@ export class Daemon implements IDaemon {
     if (actions) {
       let actionPromises: Promise<IMessageLifecycle>[] = [];
       for (const tool of this.tools.action) {
+        const toolArgs =
+          opts?.toolArgs?.[`${tool.serverUrl}-${tool.tool.name}`];
         actionPromises.push(
-          this.callTool(tool.tool.name, tool.serverUrl, lifecycle)
+          this.callTool(tool.tool.name, tool.serverUrl, {
+            lifecycle,
+            args: toolArgs,
+          })
         );
       }
 
@@ -350,8 +363,13 @@ export class Daemon implements IDaemon {
     if (postProcess) {
       let postProcessPromises: Promise<IMessageLifecycle>[] = [];
       for (const tool of this.tools.postProcess) {
+        const toolArgs =
+          opts?.toolArgs?.[`${tool.serverUrl}-${tool.tool.name}`];
         postProcessPromises.push(
-          this.callTool(tool.tool.name, tool.serverUrl, lifecycle)
+          this.callTool(tool.tool.name, tool.serverUrl, {
+            lifecycle,
+            args: toolArgs,
+          })
         );
       }
 

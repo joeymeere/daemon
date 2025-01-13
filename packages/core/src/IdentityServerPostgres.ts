@@ -166,9 +166,17 @@ export class IdentityServerPostgres implements TYPES.IIdentityServer {
     this.server.addTool({
       name: "ctx_fetchMemoryContext",
       description: "Fetch memory context",
-      parameters: TYPES.ZMessageLifecycle,
-      execute: async (lifecycle: TYPES.IMessageLifecycle) => {
-        return JSON.stringify(await this.ctx_fetchMemoryContext(lifecycle));
+      parameters: z.object({
+        lifecycle: TYPES.ZMessageLifecycle,
+        args: z.any().optional(),
+      }),
+      execute: async (args: {
+        lifecycle: TYPES.IMessageLifecycle;
+        args?: any;
+      }) => {
+        return JSON.stringify(
+          await this.ctx_fetchMemoryContext(args.lifecycle)
+        );
       },
     });
 
@@ -177,18 +185,30 @@ export class IdentityServerPostgres implements TYPES.IIdentityServer {
     this.server.addTool({
       name: "pp_createMemory",
       description: "Create a memory",
-      parameters: TYPES.ZMessageLifecycle,
-      execute: async (lifecycle: TYPES.IMessageLifecycle) => {
-        return JSON.stringify(await this.pp_createMemory(lifecycle));
+      parameters: z.object({
+        lifecycle: TYPES.ZMessageLifecycle,
+        args: z.any().optional(),
+      }),
+      execute: async (args: {
+        lifecycle: TYPES.IMessageLifecycle;
+        args?: any;
+      }) => {
+        return JSON.stringify(await this.pp_createMemory(args.lifecycle));
       },
     });
 
     this.server.addTool({
       name: "pp_createLog",
       description: "Insert a log",
-      parameters: TYPES.ZMessageLifecycle,
-      execute: async (lifecycle: TYPES.IMessageLifecycle) => {
-        return JSON.stringify(await this.pp_createLog(lifecycle));
+      parameters: z.object({
+        lifecycle: TYPES.ZMessageLifecycle,
+        args: z.any().optional(),
+      }),
+      execute: async (args: {
+        lifecycle: TYPES.IMessageLifecycle;
+        args?: any;
+      }) => {
+        return JSON.stringify(await this.pp_createLog(args.lifecycle));
       },
     });
 
