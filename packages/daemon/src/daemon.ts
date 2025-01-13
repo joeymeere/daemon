@@ -20,7 +20,6 @@ const DEFAULT_IDENTITY_PROMPT = (daemon: IDaemon) => {
 };
 
 export class Daemon implements IDaemon {
-  id: string | undefined;
   character: Character | undefined;
   keypair: Keypair | undefined;
   modelApiKeys: {
@@ -53,23 +52,26 @@ export class Daemon implements IDaemon {
 
   constructor() {}
 
-  async init(opts: {
-    id?: string;
-    character?: Character;
-    contextServerUrl: string;
-    privateKey: Keypair;
-    modelApiKeys: {
-      generationKey: string;
-      embeddingKey?: string;
-    };
-  }) {
+  async init(
+    identityServerUrl: string,
+    opts: {
+      character?: Character;
+      privateKey: Keypair;
+      modelApiKeys: {
+        generationKey: string;
+        embeddingKey?: string;
+      };
+    }
+  ) {
     this.modelApiKeys = {
       generationKey: opts.modelApiKeys.generationKey,
       embeddingKey:
         opts.modelApiKeys.embeddingKey ?? opts.modelApiKeys.generationKey,
     };
 
-    await this.addMCPServer({ url: opts.contextServerUrl });
+    this.keypair = opts.privateKey;
+
+    await this.addMCPServer({ url: identityServerUrl });
 
     if (opts.character) {
       if (opts.character?.pubkey !== opts.privateKey.publicKey.toBase58()) {
@@ -77,20 +79,18 @@ export class Daemon implements IDaemon {
       }
     }
 
-    if (opts.id) {
+    if (!opts.character) {
       // If id, then fetch character from Context Server
       try {
         const result = await this.callTool(
           "fetchCharacter",
-          opts.contextServerUrl,
+          identityServerUrl,
           {
-            id: opts.id,
+            pubkey: this.keypair.publicKey.toBase58(),
           }
         );
 
         this.character = result as Character;
-        this.keypair = opts.privateKey;
-        this.id = opts.id;
       } catch (e) {
         throw new Error(`Failed to fetch character: ${e}`);
       }
@@ -99,13 +99,11 @@ export class Daemon implements IDaemon {
       try {
         const result = await this.callTool(
           "registerCharacter",
-          opts.contextServerUrl,
+          identityServerUrl,
           opts.character
         );
 
-        this.id = result.daemonId;
         this.character = opts.character;
-        this.keypair = opts.privateKey;
       } catch (e) {
         throw new Error(`Failed to register character: ${e}`);
       }
@@ -268,8 +266,8 @@ export class Daemon implements IDaemon {
       };
     }
   ): Promise<IMessageLifecycle> {
-    if (!this.id) {
-      throw new Error("Daemon ID not found");
+    if (!this.keypair) {
+      throw new Error("Keypair not found");
     }
 
     if (!this.character) {
@@ -286,7 +284,7 @@ export class Daemon implements IDaemon {
 
     // Lifecycle: message -> fetchContext -> generateText -> takeActions -> postProcess
     let lifecycle: IMessageLifecycle = {
-      daemonId: this.id,
+      daemonPubkey: this.keypair.publicKey.toBase58(),
       message,
       createdAt: new Date().toISOString(),
       approval: "",

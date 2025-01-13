@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { $page } from "astro:page";
 </script>
 
 <div class="flex w-screen flex-col items-center gap-4">

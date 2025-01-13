@@ -1,11 +1,12 @@
 FROM oven/bun:latest
 
 WORKDIR /app
-
 COPY ./client .
 RUN bun install
+# RUN SVELTE PROD BUILD NOHUP
+
+# RUN MCP SERVERS NOHUP
 
 EXPOSE 4173
 EXPOSE 3000
 
-CMD ["bun", "run", "playground"]

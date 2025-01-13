@@ -3,7 +3,7 @@ import type { Keypair } from "@solana/web3.js";
 import { z } from "zod";
 
 export const ZMessageLifecycle = z.object({
-  daemonId: z.string(),
+  daemonPubkey: z.string(),
   message: z.string(),
   createdAt: z.string(),
   approval: z.string(),
@@ -39,34 +39,22 @@ export const ZCharacter = z.object({
     // Used to embed the message into a vector space
     embedding: ZModelSettings, // use generation if not set
   }),
-  bio: z.array(z.string()).optional(),
-  lore: z.array(z.string()).optional(),
-  identityPrompt: z.string().optional(),
+  identityPrompt: z.string(),
+  identityServerUrl: z.string(),
+  bootstrap: z.array(
+    z.object({
+      serverUrl: z.string(),
+      tools: z.array(
+        z.object({
+          toolName: z.string(),
+          args: z.any(),
+        })
+      ),
+    })
+  ),
 });
 
 export type Character = z.infer<typeof ZCharacter>;
-
-const ZMemory = z.object({
-  id: z.string(),
-  daemonId: z.string(),
-  channelId: z.string().nullable(),
-  createdAt: z.date(),
-  content: z.string(),
-  embedding: z.array(z.number()),
-  originationLogIds: z.array(z.string()),
-});
-
-export type IMemory = z.infer<typeof ZMemory>;
-
-const ZLog = z.object({
-  id: z.string().optional(),
-  daemonId: z.string(),
-  channelId: z.string().nullable(),
-  createdAt: z.date().optional(),
-  lifecycle: ZMessageLifecycle,
-});
-
-export type ILog = z.infer<typeof ZLog>;
 
 const ZApproval = z.object({
   signature: z.string(), //b64 signature of the hash
@@ -96,24 +84,31 @@ export interface IDaemonMCPServer {
   listPostProcessTools(): Promise<ITool[]>;
 }
 
+// IDENTITY SERVER STUFF
+const ZLog = z.object({
+  id: z.string().optional(),
+  daemonPubkey: z.string(),
+  channelId: z.string().nullable(),
+  createdAt: z.date().optional(),
+  lifecycle: ZMessageLifecycle,
+});
+
+export type ILog = z.infer<typeof ZLog>;
+
 export interface IIdentityServer extends IDaemonMCPServer {
   // Server Tools
-  registerCharacter(character: Character): Promise<{ daemonId: string }>; // returns characterId
-  fetchCharacter(characterId: string): Promise<Character | undefined>;
+  registerCharacter(character: Character): Promise<{ pubkey: string }>; // returns characterId
+  fetchCharacter(pubkey: string): Promise<Character | undefined>;
   fetchLogs(opts: {
-    daemonId: string;
+    daemonPubkey: string;
     channelId?: string;
     limit?: number; // Default 100
     orderBy?: "asc" | "desc"; // Default desc
   }): Promise<ILog[]>;
   // Context Tools
-  ctx_fetchMemoryContext(
-    lifecycle: IMessageLifecycle
-  ): Promise<IMessageLifecycle>;
   // Action Tools
   // Post Process Tools
   pp_createLog(lifecycle: IMessageLifecycle): Promise<IMessageLifecycle>;
-  pp_createMemory(lifecycle: IMessageLifecycle): Promise<IMessageLifecycle>;
 }
 
 export interface ToolRegistration {
@@ -123,7 +118,6 @@ export interface ToolRegistration {
 
 export interface IDaemon {
   // Properties
-  id: string | undefined;
   character: Character | undefined;
   keypair: Keypair | undefined;
   mcpClients: {
@@ -145,15 +139,17 @@ export interface IDaemon {
   };
 
   // Methods
-  init(opts: {
-    id?: string;
-    character?: Character;
-    privateKey: Keypair;
-    modelApiKeys: {
-      generationKey: string;
-      embeddingKey?: string;
-    };
-  }): Promise<void>;
+  init(
+    identityServerUrl: string,
+    opts: {
+      character?: Character;
+      privateKey: Keypair;
+      modelApiKeys: {
+        generationKey: string;
+        embeddingKey?: string;
+      };
+    }
+  ): Promise<void>;
 
   addMCPServer(opts: { url: string }): Promise<void>;
   removeMCPServer(opts: { url: string }): Promise<void>;

@@ -1,7 +1,7 @@
 {
   "name": "@spacemangaming/daemon",
   "author": "Spacemandev",
-  "version": "0.1.7",
+  "version": "0.1.11",
   "type": "module",
   "devDependencies": {
     "@rolldown/plugin-node-polyfills": "^1.0.0",

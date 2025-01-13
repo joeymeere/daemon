@@ -10,9 +10,6 @@ import { PublicKey } from "@solana/web3.js";
 import nacl from "tweetnacl";
 import { decodeUTF8 } from "tweetnacl-util";
 import {
-  generateText,
-  generateEmbeddings,
-  type ModelSettings,
   type IIdentityServer,
   ZMessageLifecycle,
   type IMessageLifecycle,
@@ -23,20 +20,13 @@ import {
 } from "@spacemangaming/daemon";
 
 /**
- * Context Server manages
+ * Identity Server manages
  *  - Character Files
- *  - Common Memories
- *  - Channel Memories
  *  - Channel Conversation Logs
  */
 export class IdentityServerPostgres implements IIdentityServer {
   private db: PostgresJsDatabase<typeof ContextServerSchema>;
   private server: LiteMCP;
-
-  private modelInfo: {
-    embedding: ModelSettings;
-    generation: ModelSettings;
-  };
 
   private initialized: boolean = false;
 
@@ -49,7 +39,6 @@ export class IdentityServerPostgres implements IIdentityServer {
       password?: string;
       database?: string;
     },
-    modelInfo: typeof this.modelInfo,
     serverOpts?: { name?: string }
   ) {
     this.db = drizzle({
@@ -58,7 +47,6 @@ export class IdentityServerPostgres implements IIdentityServer {
       casing: "snake_case",
     });
 
-    this.modelInfo = modelInfo;
     this.server = new LiteMCP(serverOpts?.name || "context-server", "1.0.0");
   }
 
@@ -66,27 +54,15 @@ export class IdentityServerPostgres implements IIdentityServer {
     // Enable pgvector extension
     await this.db.execute(sql`CREATE EXTENSION IF NOT EXISTS vector`);
 
+    // Daemons
     await this.db.execute(
-      sql`CREATE TABLE IF NOT EXISTS daemons (id text PRIMARY KEY, character jsonb, pubkey text NOT NULL)`
+      sql`CREATE TABLE IF NOT EXISTS daemons (pubkey text PRIMARY KEY, character jsonb)`
     );
     console.log("Created daemons table");
 
-    // Memories
-    await this.db.execute(
-      sql`CREATE TABLE IF NOT EXISTS memories (id text PRIMARY KEY, daemon_id text NOT NULL, channel_id text, created_at timestamp NOT NULL, content text NOT NULL, embedding vector(${sql.raw(
-        this.modelInfo.embedding.dimensions?.toString() || "1536"
-      )}) NOT NULL, original_lifecycle jsonb)`
-    );
-    console.log("Created memories table");
-
-    await this.db.execute(
-      sql`CREATE INDEX IF NOT EXISTS "embeddingIndex" ON "memories" USING hnsw (embedding vector_cosine_ops)`
-    );
-    console.log("Created embeddingIndex");
-
     // Logs
     await this.db.execute(
-      sql`CREATE TABLE IF NOT EXISTS logs (id text PRIMARY KEY, daemon_id text NOT NULL, channel_id text, created_at timestamp NOT NULL, lifecycle jsonb)`
+      sql`CREATE TABLE IF NOT EXISTS logs (id text PRIMARY KEY, daemon_pubkey text NOT NULL, channel_id text, created_at timestamp NOT NULL, lifecycle jsonb)`
     );
     console.log("Created logs table");
 
@@ -95,7 +71,7 @@ export class IdentityServerPostgres implements IIdentityServer {
 
   async start(port?: number): Promise<void> {
     if (!this.initialized) {
-      throw new Error("Context Server not initialized");
+      throw new Error("Identity Server not initialized");
     }
 
     // Server Info
@@ -170,7 +146,7 @@ export class IdentityServerPostgres implements IIdentityServer {
       name: "fetchLogs",
       description: "Fetch logs",
       parameters: z.object({
-        daemonId: z.string(),
+        daemonPubkey: z.string(),
         channelId: z.string().optional(),
         limit: z.number().optional(),
         orderBy: z.enum(["asc", "desc"]).optional(),
@@ -180,34 +156,8 @@ export class IdentityServerPostgres implements IIdentityServer {
       },
     });
 
-    this.server.addTool({
-      name: "ctx_fetchMemoryContext",
-      description: "Fetch memory context",
-      parameters: z.object({
-        lifecycle: ZMessageLifecycle,
-        args: z.any().optional(),
-      }),
-      execute: async (args: { lifecycle: IMessageLifecycle; args?: any }) => {
-        return JSON.stringify(
-          await this.ctx_fetchMemoryContext(args.lifecycle)
-        );
-      },
-    });
-
     // Action Tools
     // Post Process Tools
-    this.server.addTool({
-      name: "pp_createMemory",
-      description: "Create a memory",
-      parameters: z.object({
-        lifecycle: ZMessageLifecycle,
-        args: z.any().optional(),
-      }),
-      execute: async (args: { lifecycle: IMessageLifecycle; args?: any }) => {
-        return JSON.stringify(await this.pp_createMemory(args.lifecycle));
-      },
-    });
-
     this.server.addTool({
       name: "pp_createLog",
       description: "Insert a log",
@@ -238,8 +188,7 @@ export class IdentityServerPostgres implements IIdentityServer {
   async getServerInfo(): Promise<{ name: string; description: string }> {
     return {
       name: "Daemon Identity Server",
-      description:
-        "Identity Server for Daemon Framework that manages characters and memories",
+      description: "Identity Server for Daemon Framework that manages logs",
     };
   }
 
@@ -268,14 +217,7 @@ export class IdentityServerPostgres implements IIdentityServer {
   }
 
   async listContextTools(): Promise<ITool[]> {
-    return [
-      {
-        name: "ctx_fetchMemoryContext",
-        description: "Fetch memory context",
-        type: "Context",
-        zIndex: 0,
-      },
-    ];
+    return [];
   }
 
   async listActionTools(): Promise<ITool[]> {
@@ -290,56 +232,24 @@ export class IdentityServerPostgres implements IIdentityServer {
         type: "PostProcess",
         zIndex: 99999,
       },
-      {
-        name: "pp_createMemory",
-        description: "Create a memory",
-        type: "PostProcess",
-        zIndex: 0,
-      },
     ];
   }
 
   // Server Tools
-  async registerCharacter(character: Character): Promise<{ daemonId: string }> {
+  async registerCharacter(character: Character): Promise<{ pubkey: string }> {
     if (!this.initialized) {
       throw new Error("Context Server not initialized");
     }
 
-    const daemonId = nanoid();
     await this.db.insert(ContextServerSchema.daemons).values({
-      id: daemonId,
-      character,
       pubkey: character.pubkey,
+      character,
     });
 
-    if (character.lore) {
-      // Create memories from lore
-      const systemPrompt = `
-      You are a helpful assistant that will take the following lore about an AI agent and create a memory for the AI agent to store and retrieve later.
-      Keep memories less than 256 characters.
-      `;
-      let lorePromises: Promise<{
-        memoryId: string;
-        summary: string;
-        embedding: number[];
-      }>[] = [];
-      for (const lore of character.lore) {
-        lorePromises.push(
-          this.createMemoryAndEmbeddings(
-            daemonId,
-            systemPrompt,
-            lore,
-            null,
-            undefined
-          )
-        );
-      }
-      await Promise.all(lorePromises);
-    }
-    return { daemonId };
+    return { pubkey: character.pubkey };
   }
 
-  async fetchCharacter(daemonId: string): Promise<Character | undefined> {
+  async fetchCharacter(pubkey: string): Promise<Character | undefined> {
     if (!this.initialized) {
       throw new Error("Context Server not initialized");
     }
@@ -347,13 +257,13 @@ export class IdentityServerPostgres implements IIdentityServer {
     const character = await this.db
       .select()
       .from(ContextServerSchema.daemons)
-      .where(eq(ContextServerSchema.daemons.id, daemonId))
+      .where(eq(ContextServerSchema.daemons.pubkey, pubkey))
       .execute();
     return character[0]?.character as Character | undefined;
   }
 
   async fetchLogs(opts: {
-    daemonId: string;
+    daemonPubkey: string;
     channelId?: string;
     limit?: number;
     orderBy?: "asc" | "desc";
@@ -365,7 +275,7 @@ export class IdentityServerPostgres implements IIdentityServer {
     const logs = await this.db
       .select()
       .from(ContextServerSchema.logs)
-      .where(eq(ContextServerSchema.logs.daemonId, opts.daemonId))
+      .where(eq(ContextServerSchema.logs.daemonPubkey, opts.daemonPubkey))
       .limit(opts.limit || 100)
       .orderBy(
         opts.orderBy === "asc"
@@ -383,43 +293,6 @@ export class IdentityServerPostgres implements IIdentityServer {
   }
 
   // Context Tools
-  async ctx_fetchMemoryContext(
-    lifecycle: IMessageLifecycle
-  ): Promise<IMessageLifecycle> {
-    if (!this.initialized) {
-      throw new Error("Context Server not initialized");
-    }
-
-    if (!lifecycle.embedding) {
-      throw new Error("Requires embeddings for the message");
-    }
-    const similarityThreshold = 0.5; // TODO: Make this configurable
-    const limit = 10; // TODO: Make this configurable
-    const similarity = sql<number>`1 - (${cosineDistance(
-      ContextServerSchema.memories.embedding,
-      lifecycle.embedding
-    )})`;
-
-    const relevantMemories = await this.db
-      .select()
-      .from(ContextServerSchema.memories)
-      .where(
-        and(
-          eq(ContextServerSchema.memories.daemonId, lifecycle.daemonId),
-          lifecycle.channelId
-            ? eq(ContextServerSchema.memories.channelId, lifecycle.channelId)
-            : undefined,
-          gte(similarity, similarityThreshold)
-        )
-      )
-      .orderBy(desc(similarity))
-      .limit(limit)
-      .execute();
-
-    lifecycle.context.push(...relevantMemories.map((memory) => memory.content));
-    return lifecycle;
-  }
-
   // Action Tools
 
   // Post Process Tools
@@ -429,17 +302,8 @@ export class IdentityServerPostgres implements IIdentityServer {
     }
 
     // Check Approval
-    // Fetch Daemon Pubkey
-    const daemon = await this.db
-      .select({
-        pubkey: ContextServerSchema.daemons.pubkey,
-      })
-      .from(ContextServerSchema.daemons)
-      .where(eq(ContextServerSchema.daemons.id, lifecycle.daemonId))
-      .execute();
-    const daemonPubkey = daemon[0]?.pubkey;
 
-    if (!checkApproval(daemonPubkey, lifecycle)) {
+    if (!checkApproval(lifecycle.daemonPubkey, lifecycle)) {
       throw new Error("Approval failed");
     }
 
@@ -447,7 +311,7 @@ export class IdentityServerPostgres implements IIdentityServer {
     const logId = nanoid();
     await this.db.insert(ContextServerSchema.logs).values({
       id: logId,
-      daemonId: lifecycle.daemonId,
+      daemonPubkey: lifecycle.daemonPubkey,
       channelId: lifecycle.channelId,
       createdAt: new Date(),
       lifecycle: lifecycle,
@@ -463,99 +327,6 @@ export class IdentityServerPostgres implements IIdentityServer {
       })
     );
     return lifecycle;
-  }
-
-  async pp_createMemory(
-    lifecycle: IMessageLifecycle
-  ): Promise<IMessageLifecycle> {
-    if (!this.initialized) {
-      throw new Error("Context Server not initialized");
-    }
-
-    // Check Approval
-    // Fetch Daemon Pubkey
-    const daemon = await this.db
-      .select({
-        pubkey: ContextServerSchema.daemons.pubkey,
-      })
-      .from(ContextServerSchema.daemons)
-      .where(eq(ContextServerSchema.daemons.id, lifecycle.daemonId))
-      .execute();
-    const daemonPubkey = daemon[0]?.pubkey;
-
-    if (!checkApproval(daemonPubkey, lifecycle)) {
-      throw new Error("Approval failed");
-    }
-
-    // TODO:
-    // Decide if memory should be created (current ALL messages are stored) ->
-    // Generate Summary & Embedding for Memory ->
-    const systemPrompt = `You are a helpful assistant that can concisely summarize a conversation into a one sentence summary to be stored as a memory for an AI agent.`;
-    const summaryPrompt = `
-    Summarize the following input message and what the AI agent replied with as a memory that's less than 256 characters.
-    # Input Message
-    ${lifecycle.message}
-    # Agent Reply
-    ${lifecycle.output} 
-    `;
-
-    const { memoryId, summary, embedding } =
-      await this.createMemoryAndEmbeddings(
-        lifecycle.daemonId,
-        systemPrompt,
-        summaryPrompt,
-        lifecycle.channelId,
-        lifecycle
-      );
-
-    lifecycle.postProcess.push(
-      JSON.stringify({
-        server: this.server.name,
-        tool: "pp_createMemory",
-        args: {
-          memoryId,
-        },
-      })
-    );
-    return lifecycle;
-  }
-
-  private async createMemoryAndEmbeddings(
-    daemonId: string,
-    systemPrompt: string,
-    summaryPrompt: string,
-    channelId: string | null,
-    lifecycle?: IMessageLifecycle
-  ) {
-    const summary = await generateText(
-      this.modelInfo.generation,
-      this.modelInfo.generation.apiKey!,
-      systemPrompt,
-      summaryPrompt
-    );
-    const embedding = await generateEmbeddings(
-      this.modelInfo.embedding,
-      this.modelInfo.embedding.apiKey!,
-      summary
-    );
-
-    // Create Memory
-    const memoryId = nanoid();
-    await this.db.insert(ContextServerSchema.memories).values({
-      id: memoryId,
-      daemonId: daemonId,
-      channelId: channelId,
-      createdAt: new Date(),
-      content: summary,
-      embedding: embedding,
-      originalLifecycle: lifecycle,
-    });
-
-    return {
-      memoryId,
-      summary,
-      embedding,
-    };
   }
 }
 
@@ -579,30 +350,14 @@ function checkApproval(daemonKey: string, lifecycle: IMessageLifecycle) {
   );
 }
 
-const settings = {
-  key: text("key").primaryKey(),
-  value: text("value"),
-};
-
 const daemons = {
-  id: text("id").primaryKey(),
+  pubkey: text("pubkey").primaryKey(),
   character: jsonb("character"),
-  pubkey: text("pubkey").notNull(),
-};
-
-const memories = {
-  id: text("id").primaryKey(),
-  daemonId: text("daemon_id").notNull(),
-  channelId: text("channel_id"),
-  createdAt: timestamp("created_at").notNull(),
-  content: text("content").notNull(),
-  embedding: vector("embedding", { dimensions: 1 }).notNull(), // Dimensions is just a placeholder, gets overwrriten on creation
-  originalLifecycle: jsonb("original_lifecycle"),
 };
 
 const logs = {
   id: text("id").primaryKey(),
-  daemonId: text("daemon_id").notNull(),
+  daemonPubkey: text("daemon_pubkey").notNull(),
   channelId: text("channel_id"),
   createdAt: timestamp("created_at").notNull(),
   lifecycle: jsonb("lifecycle").notNull(),
@@ -610,7 +365,5 @@ const logs = {
 
 let ContextServerSchema = {
   daemons: pgTable("daemons", daemons),
-  memories: pgTable("memories", memories),
   logs: pgTable("logs", logs),
-  settings: pgTable("settings", settings),
 };

@@ -18,6 +18,7 @@ export async function generateEmbeddings(
       const client = new OpenAI({
         apiKey: embeddingModelKey,
         baseURL: embeddingModelSettings.endpoint,
+        dangerouslyAllowBrowser: true,
       });
 
       const embedding = await client.embeddings.create({
@@ -43,6 +44,7 @@ export async function generateText(
       const openai = new OpenAI({
         apiKey: generationModelKey,
         baseURL: generationModelSettings.endpoint,
+        dangerouslyAllowBrowser: true,
       });
 
       const openaiResponse = await openai.chat.completions.create({

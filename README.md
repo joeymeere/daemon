@@ -12,7 +12,17 @@ Daemon is a lightweight, scalable, standards first framework for building AI age
 2. Use [Model Context Protocol](https://modelcontextprotocol.io/) to provide extensibility
 3. Memory management and RAG out of the box
 
+## Design
+
 ## Quickstart
+
+### Docker
+
+```bash
+docker compose up -d
+```
+
+### Typescript
 
 ```typescript
 // Run an Identity MCP Server
@@ -63,16 +73,6 @@ console.log(
   (await bob.message("Hello Bob, built anything cool recently?")).output
 );
 ```
-
-## Design
-
-### Daemon
-
-### types/IDaemonMCPServer
-
-### types/IIdentityServer
-
-### types/ILifecycle
 
 ### FAQ
 

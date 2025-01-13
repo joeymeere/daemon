@@ -2,14 +2,14 @@
   "name": "@spacemangaming/mcp-servers",
   "description": "MCP Servers for Daemon Framework",
   "author": "Spacemandev",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "module": "index.ts",
   "type": "module",
   "devDependencies": {
     "@types/bun": "latest"
   },
   "peerDependencies": {
-    "typescript": "^5.0.0"
+    "typescript": "^5.7.3"
   },
   "scripts": {
     "build": "bun build --target node --outdir dist src/index.ts",
@@ -23,7 +23,7 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "dependencies": {
-    "@spacemangaming/daemon": "^0.1.7",
+    "@spacemangaming/daemon": "^0.1.11",
     "drizzle-orm": "^0.38.3",
     "litemcp": "^0.8.0",
     "nanoid": "^5.0.9",
