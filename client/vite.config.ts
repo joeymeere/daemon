@@ -3,6 +3,5 @@ import { defineConfig } from 'vite';
 import { nodePolyfills } from 'vite-plugin-node-polyfills';
 
 export default defineConfig({
-	plugins: [sveltekit(), nodePolyfills()],
-	resolve: { alias: { stream: 'stream-browserify' } }
+	plugins: [sveltekit(), nodePolyfills()]
 });
