@@ -7,8 +7,8 @@
 // TODO: Channel scope
 
 import { Keypair } from "@solana/web3.js";
-import { IdentityServerPostgres } from "../packages/core/src/IdentityServerPostgres";
-import { Daemon } from "../packages/core/src/daemon";
+import { IdentityServerPostgres } from "../packages/daemon/src/IdentityServerPostgres";
+import { Daemon } from "../packages/daemon/src/daemon";
 import { describe, it } from "bun:test";
 
 // ID Server
