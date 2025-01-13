@@ -14,5 +14,7 @@
 </script>
 
 <div class="flex h-screen w-screen flex-col font-syne-mono">
-	{@render children()}
+	<div class="mx-auto w-full max-w-[425px]">
+		{@render children()}
+	</div>
 </div>

@@ -12,6 +12,7 @@
   ],
   "dependencies": {
     "@solana/web3.js": "^1.98.0",
+    "@spacemangaming/mcp-servers": "^0.1.0",
     "tweetnacl-util": "^0.15.1"
   },
   "scripts": {

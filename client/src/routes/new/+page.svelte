@@ -17,7 +17,7 @@
 
 		await char.init({
 			character,
-			contextServerUrl: `http://localhost:3000/sse`,
+			contextServerUrl: `http://localhost:5173/api`,
 			privateKey: keypair,
 			modelApiKeys: {
 				generationKey: process.env.OPENAI_API_KEY!,
@@ -34,7 +34,7 @@
 	}
 </script>
 
-<div class="mx-auto flex h-full max-w-[500px] flex-col gap-4">
+<div class="flex h-full flex-col gap-4">
 	<p class="mx-auto pt-2 text-xl">Create a new daemon</p>
 
 	<div class="mx-auto">
@@ -54,13 +54,13 @@
 		{#if isMultiple}
 			<textarea
 				bind:value={name}
-				class="text-secondary placeholder:text-secondary w-full p-1 placeholder:opacity-50"
+				class="w-full p-1 text-secondary placeholder:text-secondary placeholder:opacity-50"
 				placeholder="Enter names seperated by commas"
 			></textarea>
 		{:else}
 			<input
 				bind:value={name}
-				class="text-secondary placeholder:text-secondary w-full p-1 placeholder:opacity-50"
+				class="w-full p-1 text-secondary placeholder:text-secondary placeholder:opacity-50"
 				placeholder="What's my name?"
 			/>
 		{/if}
@@ -69,7 +69,7 @@
 		<p>Personality</p>
 		<textarea
 			bind:value={personality}
-			class="text-secondary placeholder:text-secondary w-full p-1 placeholder:opacity-50"
+			class="w-full p-1 text-secondary placeholder:text-secondary placeholder:opacity-50"
 			placeholder="what defines my personality"
 		></textarea>
 	</div>

@@ -1,20 +1,26 @@
 <script lang="ts">
+	import { updateDaemons, daemonStore } from '$lib/stores/daemon.svelte';
+	import { Daemon } from '@spacemangaming/daemon';
 </script>
 
-<div class="flex w-screen flex-col items-center gap-4">
-	<p class="pt-2 text-2xl">Initializing Daemon</p>
-	<a href="/new">
-		<button class="border-primary rounded-lg border-2 p-2"> + Create new daemon </button>
-	</a>
-	<div class="bg-cta h-1 w-full"></div>
-	<a href="/chat" class="w-full">
-		<div class="border-primary w-full rounded border-2 p-2">
-			<p class="text-xl">Carl</p>
-			<p>Relationships:</p>
-			<ul class="list-disc pl-4">
-				<li>Alice</li>
-				<li>Bob</li>
-			</ul>
+{#snippet char(daemon: Daemon)}
+	<a href={'/chat?id=' + daemon.id} class="w-full">
+		<div class="w-full rounded border-2 border-primary p-2">
+			<p class="text-xl">{daemon.character?.name}</p>
+			<p>
+				{daemon.id}
+			</p>
 		</div>
 	</a>
+{/snippet}
+
+<div class="flex flex-col items-center gap-4">
+	<p class="pt-2 text-2xl">Welcome to Daemon</p>
+	<a href="/new">
+		<button class="rounded-lg border-2 border-primary p-2"> + Create new daemon </button>
+	</a>
+	<div class="h-1 w-full bg-cta"></div>
+	{#each $daemonStore as daemon}
+		{@render char(daemon)}
+	{/each}
 </div>
