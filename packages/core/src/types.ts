@@ -79,13 +79,6 @@ const ZTool = z.object({
   description: z.string(),
   type: z.enum(["Context", "Action", "PostProcess", "Server"]),
   zIndex: z.number(),
-  inputParameters: z.array(
-    z.object({
-      name: z.string(),
-      description: z.string(),
-      type: z.enum(["string", "number", "boolean", "array", "object"]),
-    })
-  ),
 });
 
 export type ITool = z.infer<typeof ZTool>;

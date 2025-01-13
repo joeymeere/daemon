@@ -243,39 +243,18 @@ export class IdentityServerPostgres implements TYPES.IIdentityServer {
         description: "Register a new character",
         type: "Server",
         zIndex: 0,
-        inputParameters: [
-          {
-            name: "character",
-            description: "The character to register",
-            type: "object",
-          },
-        ],
       },
       {
         name: "fetchCharacter",
         description: "Fetch a character",
         type: "Server",
         zIndex: 0,
-        inputParameters: [
-          {
-            name: "daemonId",
-            description: "The daemon ID",
-            type: "string",
-          },
-        ],
       },
       {
         name: "fetchLogs",
         description: "Fetch logs",
         type: "Server",
         zIndex: 0,
-        inputParameters: [
-          {
-            name: "daemonId",
-            description: "The daemon ID",
-            type: "string",
-          },
-        ],
       },
     ];
   }
@@ -287,13 +266,6 @@ export class IdentityServerPostgres implements TYPES.IIdentityServer {
         description: "Fetch memory context",
         type: "Context",
         zIndex: 0,
-        inputParameters: [
-          {
-            name: "lifecycle",
-            description: "Message Lifecycle",
-            type: "object",
-          },
-        ],
       },
     ];
   }
@@ -309,26 +281,12 @@ export class IdentityServerPostgres implements TYPES.IIdentityServer {
         description: "Create a log",
         type: "PostProcess",
         zIndex: 99999,
-        inputParameters: [
-          {
-            name: "lifecycle",
-            description: "Message Lifecycle",
-            type: "object",
-          },
-        ],
       },
       {
         name: "pp_createMemory",
         description: "Create a memory",
         type: "PostProcess",
         zIndex: 0,
-        inputParameters: [
-          {
-            name: "lifecycle",
-            description: "Message Lifecycle",
-            type: "object",
-          },
-        ],
       },
     ];
   }
