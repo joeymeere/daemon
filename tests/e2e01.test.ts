@@ -9,7 +9,7 @@
 import { Keypair } from "@solana/web3.js";
 import { IdentityServerPostgres } from "../packages/core/src/IdentityServerPostgres";
 import { Daemon } from "../packages/core/src/daemon";
-import { describe, it, expect } from "bun:test";
+import { describe, it } from "bun:test";
 
 // ID Server
 const idServer = new IdentityServerPostgres(

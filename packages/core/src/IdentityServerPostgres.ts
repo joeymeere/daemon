@@ -387,7 +387,7 @@ export class IdentityServerPostgres implements TYPES.IIdentityServer {
     if (!lifecycle.embedding) {
       throw new Error("Requires embeddings for the message");
     }
-    const similarityThreshold = 0.85; // TODO: Make this configurable
+    const similarityThreshold = 0.5; // TODO: Make this configurable
     const limit = 10; // TODO: Make this configurable
     const similarity = sql<number>`1 - (${cosineDistance(
       ContextServerSchema.memories.embedding,
