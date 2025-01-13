@@ -12,6 +12,7 @@ import type { Keypair } from "@solana/web3.js";
 import { createPrompt, generateEmbeddings, generateText } from "./llm.js";
 import nacl from "tweetnacl";
 import { decodeUTF8 } from "tweetnacl-util";
+import { nanoid } from "nanoid";
 
 const DEFAULT_IDENTITY_PROMPT = (daemon: IDaemon) => {
   return `
@@ -109,6 +110,14 @@ export class Daemon implements IDaemon {
       }
     } else {
       throw new Error("No character or id provided");
+    }
+
+    // Bootstrap
+    for (const bootstrap of this.character?.bootstrap ?? []) {
+      await this.addMCPServer({ url: bootstrap.serverUrl });
+      for (const tool of bootstrap.tools) {
+        await this.callTool(tool.toolName, bootstrap.serverUrl, tool.args);
+      }
     }
   }
 
@@ -285,7 +294,8 @@ export class Daemon implements IDaemon {
     // Lifecycle: message -> fetchContext -> generateText -> takeActions -> postProcess
     let lifecycle: IMessageLifecycle = {
       daemonPubkey: this.keypair.publicKey.toBase58(),
-      message,
+      messageId: nanoid(),
+      message: message,
       createdAt: new Date().toISOString(),
       approval: "",
       channelId: opts?.channelId ?? null,
@@ -391,6 +401,7 @@ export class Daemon implements IDaemon {
         {
           message: lifecycle.message,
           createdAt: lifecycle.createdAt,
+          messageId: lifecycle.messageId,
         },
         null,
         0

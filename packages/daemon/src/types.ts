@@ -5,6 +5,7 @@ import { z } from "zod";
 export const ZMessageLifecycle = z.object({
   daemonPubkey: z.string(),
   message: z.string(),
+  messageId: z.string(),
   createdAt: z.string(),
   approval: z.string(),
   channelId: z.string().nullable(),

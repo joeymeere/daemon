@@ -1,14 +1,11 @@
 import { LiteMCP } from "litemcp";
 import { drizzle, PostgresJsDatabase } from "drizzle-orm/postgres-js";
-import { eq, desc, asc, and, cosineDistance, gte } from "drizzle-orm";
+import { eq, desc, asc } from "drizzle-orm";
 import { pgTable, timestamp } from "drizzle-orm/pg-core";
-import { jsonb, text, vector } from "drizzle-orm/pg-core";
+import { jsonb, text } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { z } from "zod";
-import { PublicKey } from "@solana/web3.js";
-import nacl from "tweetnacl";
-import { decodeUTF8 } from "tweetnacl-util";
 import {
   type IIdentityServer,
   ZMessageLifecycle,
@@ -17,6 +14,7 @@ import {
   type Character,
   type ILog,
   ZCharacter,
+  checkApproval,
 } from "@spacemangaming/daemon";
 
 /**
@@ -303,7 +301,7 @@ export class IdentityServerPostgres implements IIdentityServer {
 
     // Check Approval
 
-    if (!checkApproval(lifecycle.daemonPubkey, lifecycle)) {
+    if (!checkApproval(lifecycle)) {
       throw new Error("Approval failed");
     }
 
@@ -328,26 +326,6 @@ export class IdentityServerPostgres implements IIdentityServer {
     );
     return lifecycle;
   }
-}
-
-function checkApproval(daemonKey: string, lifecycle: IMessageLifecycle) {
-  const messageBytes = decodeUTF8(
-    JSON.stringify(
-      {
-        message: lifecycle.message,
-        createdAt: lifecycle.createdAt,
-      },
-      null,
-      0
-    )
-  );
-
-  const pubkey = new PublicKey(daemonKey);
-  return nacl.sign.detached.verify(
-    messageBytes,
-    Uint8Array.from(Buffer.from(lifecycle.approval, "base64")),
-    pubkey.toBytes()
-  );
 }
 
 const daemons = {
