@@ -9,22 +9,22 @@
 	let personality = '';
 	let char: Daemon | null = null;
 
-	// onMount(async () => {
-	// 	char = new Daemon();
-	// 	const keypair = Keypair.generate();
-	// 	const character = CharJson as Character;
-	// 	character.pubkey = keypair.publicKey.toBase58();
+	onMount(async () => {
+		char = new Daemon();
+		const keypair = Keypair.generate();
+		const character = CharJson as Character;
+		character.pubkey = keypair.publicKey.toBase58();
 
-	// 	await char.init({
-	// 		character,
-	// 		contextServerUrl: `http://localhost:3000/sse`,
-	// 		privateKey: keypair,
-	// 		modelApiKeys: {
-	// 			generationKey: process.env.OPENAI_API_KEY!,
-	// 			embeddingKey: process.env.OPENAI_API_KEY!
-	// 		}
-	// 	});
-	// });
+		await char.init({
+			character,
+			contextServerUrl: `http://localhost:3000/sse`,
+			privateKey: keypair,
+			modelApiKeys: {
+				generationKey: process.env.OPENAI_API_KEY!,
+				embeddingKey: process.env.OPENAI_API_KEY!
+			}
+		});
+	});
 
 	$: amountOfDaemons = name.split(',').length;
 	$: if (amountOfDaemons > 1) {
@@ -34,9 +34,8 @@
 	}
 </script>
 
-<div class="flex h-full flex-col gap-4">
+<div class="mx-auto flex h-full max-w-[500px] flex-col gap-4">
 	<p class="mx-auto pt-2 text-xl">Create a new daemon</p>
-	{char.id ?? 'no id'}
 
 	<div class="mx-auto">
 		<label class="inline-flex cursor-pointer items-center gap-2">
