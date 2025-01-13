@@ -4,7 +4,6 @@ import {
   type ToolRegistration,
   type ITool,
   type IMessageLifecycle,
-  ZMessageLifecycle,
 } from "./types";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { SSEClientTransport } from "./SSEClientTransport.js";

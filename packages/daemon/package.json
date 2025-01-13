@@ -1,5 +1,5 @@
 {
-  "name": "@daemon/core",
+  "name": "@spcg-nest/daemon",
   "author": "Spacemandev",
   "version": "0.1.0",
   "publishConfig": {

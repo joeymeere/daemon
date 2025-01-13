@@ -29,8 +29,18 @@ jobs:
 
       - name: Configure npm
         run: |
-          echo "@daemon:registry=https://npm.pkg.github.com" > .npmrc
+          # Configure npm to use GitHub Package Registry for the organization scope
+          echo "@spcg-nest:registry=https://npm.pkg.github.com" > .npmrc
           echo "//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}" >> .npmrc
+          # Update package names to use organization scope
+          for pkg in packages/*; do
+            if [ -f "$pkg/package.json" ]; then
+              cd $pkg
+              PACKAGE_NAME=$(node -p "require('./package.json').name.split('/')[1]")
+              npm pkg set name="@spcg-nest/${PACKAGE_NAME}"
+              cd ../..
+            fi
+          done
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
