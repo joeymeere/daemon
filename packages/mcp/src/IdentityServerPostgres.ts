@@ -1,6 +1,5 @@
 import { LiteMCP } from "litemcp";
 import { drizzle, PostgresJsDatabase } from "drizzle-orm/postgres-js";
-import * as TYPES from "./types";
 import { eq, desc, asc, and, cosineDistance, gte } from "drizzle-orm";
 import { pgTable, timestamp } from "drizzle-orm/pg-core";
 import { jsonb, text, vector } from "drizzle-orm/pg-core";
@@ -10,7 +9,18 @@ import { z } from "zod";
 import { PublicKey } from "@solana/web3.js";
 import nacl from "tweetnacl";
 import { decodeUTF8 } from "tweetnacl-util";
-import { generateText, generateEmbeddings } from "./llm";
+import {
+  generateText,
+  generateEmbeddings,
+  type ModelSettings,
+  type IIdentityServer,
+  ZMessageLifecycle,
+  type IMessageLifecycle,
+  type ITool,
+  type Character,
+  type ILog,
+  ZCharacter,
+} from "@spacemangaming/daemon";
 
 /**
  * Context Server manages
@@ -19,13 +29,13 @@ import { generateText, generateEmbeddings } from "./llm";
  *  - Channel Memories
  *  - Channel Conversation Logs
  */
-export class IdentityServerPostgres implements TYPES.IIdentityServer {
+export class IdentityServerPostgres implements IIdentityServer {
   private db: PostgresJsDatabase<typeof ContextServerSchema>;
   private server: LiteMCP;
 
   private modelInfo: {
-    embedding: TYPES.ModelSettings;
-    generation: TYPES.ModelSettings;
+    embedding: ModelSettings;
+    generation: ModelSettings;
   };
 
   private initialized: boolean = false;
@@ -139,8 +149,8 @@ export class IdentityServerPostgres implements TYPES.IIdentityServer {
     this.server.addTool({
       name: "registerCharacter",
       description: "Register a new character",
-      parameters: TYPES.ZCharacter,
-      execute: async (character: TYPES.Character) => {
+      parameters: ZCharacter,
+      execute: async (character: Character) => {
         return JSON.stringify(await this.registerCharacter(character));
       },
     });
@@ -174,13 +184,10 @@ export class IdentityServerPostgres implements TYPES.IIdentityServer {
       name: "ctx_fetchMemoryContext",
       description: "Fetch memory context",
       parameters: z.object({
-        lifecycle: TYPES.ZMessageLifecycle,
+        lifecycle: ZMessageLifecycle,
         args: z.any().optional(),
       }),
-      execute: async (args: {
-        lifecycle: TYPES.IMessageLifecycle;
-        args?: any;
-      }) => {
+      execute: async (args: { lifecycle: IMessageLifecycle; args?: any }) => {
         return JSON.stringify(
           await this.ctx_fetchMemoryContext(args.lifecycle)
         );
@@ -193,13 +200,10 @@ export class IdentityServerPostgres implements TYPES.IIdentityServer {
       name: "pp_createMemory",
       description: "Create a memory",
       parameters: z.object({
-        lifecycle: TYPES.ZMessageLifecycle,
+        lifecycle: ZMessageLifecycle,
         args: z.any().optional(),
       }),
-      execute: async (args: {
-        lifecycle: TYPES.IMessageLifecycle;
-        args?: any;
-      }) => {
+      execute: async (args: { lifecycle: IMessageLifecycle; args?: any }) => {
         return JSON.stringify(await this.pp_createMemory(args.lifecycle));
       },
     });
@@ -208,13 +212,10 @@ export class IdentityServerPostgres implements TYPES.IIdentityServer {
       name: "pp_createLog",
       description: "Insert a log",
       parameters: z.object({
-        lifecycle: TYPES.ZMessageLifecycle,
+        lifecycle: ZMessageLifecycle,
         args: z.any().optional(),
       }),
-      execute: async (args: {
-        lifecycle: TYPES.IMessageLifecycle;
-        args?: any;
-      }) => {
+      execute: async (args: { lifecycle: IMessageLifecycle; args?: any }) => {
         return JSON.stringify(await this.pp_createLog(args.lifecycle));
       },
     });
@@ -243,7 +244,7 @@ export class IdentityServerPostgres implements TYPES.IIdentityServer {
   }
 
   // List Tools
-  async listServerTools(): Promise<TYPES.ITool[]> {
+  async listServerTools(): Promise<ITool[]> {
     return [
       {
         name: "registerCharacter",
@@ -266,7 +267,7 @@ export class IdentityServerPostgres implements TYPES.IIdentityServer {
     ];
   }
 
-  async listContextTools(): Promise<TYPES.ITool[]> {
+  async listContextTools(): Promise<ITool[]> {
     return [
       {
         name: "ctx_fetchMemoryContext",
@@ -277,11 +278,11 @@ export class IdentityServerPostgres implements TYPES.IIdentityServer {
     ];
   }
 
-  async listActionTools(): Promise<TYPES.ITool[]> {
+  async listActionTools(): Promise<ITool[]> {
     return [];
   }
 
-  async listPostProcessTools(): Promise<TYPES.ITool[]> {
+  async listPostProcessTools(): Promise<ITool[]> {
     return [
       {
         name: "pp_createLog",
@@ -299,9 +300,7 @@ export class IdentityServerPostgres implements TYPES.IIdentityServer {
   }
 
   // Server Tools
-  async registerCharacter(
-    character: TYPES.Character
-  ): Promise<{ daemonId: string }> {
+  async registerCharacter(character: Character): Promise<{ daemonId: string }> {
     if (!this.initialized) {
       throw new Error("Context Server not initialized");
     }
@@ -340,7 +339,7 @@ export class IdentityServerPostgres implements TYPES.IIdentityServer {
     return { daemonId };
   }
 
-  async fetchCharacter(daemonId: string): Promise<TYPES.Character | undefined> {
+  async fetchCharacter(daemonId: string): Promise<Character | undefined> {
     if (!this.initialized) {
       throw new Error("Context Server not initialized");
     }
@@ -350,7 +349,7 @@ export class IdentityServerPostgres implements TYPES.IIdentityServer {
       .from(ContextServerSchema.daemons)
       .where(eq(ContextServerSchema.daemons.id, daemonId))
       .execute();
-    return character[0]?.character as TYPES.Character | undefined;
+    return character[0]?.character as Character | undefined;
   }
 
   async fetchLogs(opts: {
@@ -358,7 +357,7 @@ export class IdentityServerPostgres implements TYPES.IIdentityServer {
     channelId?: string;
     limit?: number;
     orderBy?: "asc" | "desc";
-  }): Promise<TYPES.ILog[]> {
+  }): Promise<ILog[]> {
     if (!this.initialized) {
       throw new Error("Context Server not initialized");
     }
@@ -378,15 +377,15 @@ export class IdentityServerPostgres implements TYPES.IIdentityServer {
     return logs.map((log) => {
       return {
         ...log,
-        lifecycle: log.lifecycle as TYPES.IMessageLifecycle,
+        lifecycle: log.lifecycle as IMessageLifecycle,
       };
     });
   }
 
   // Context Tools
   async ctx_fetchMemoryContext(
-    lifecycle: TYPES.IMessageLifecycle
-  ): Promise<TYPES.IMessageLifecycle> {
+    lifecycle: IMessageLifecycle
+  ): Promise<IMessageLifecycle> {
     if (!this.initialized) {
       throw new Error("Context Server not initialized");
     }
@@ -424,9 +423,7 @@ export class IdentityServerPostgres implements TYPES.IIdentityServer {
   // Action Tools
 
   // Post Process Tools
-  async pp_createLog(
-    lifecycle: TYPES.IMessageLifecycle
-  ): Promise<TYPES.IMessageLifecycle> {
+  async pp_createLog(lifecycle: IMessageLifecycle): Promise<IMessageLifecycle> {
     if (!this.initialized) {
       throw new Error("Context Server not initialized");
     }
@@ -469,8 +466,8 @@ export class IdentityServerPostgres implements TYPES.IIdentityServer {
   }
 
   async pp_createMemory(
-    lifecycle: TYPES.IMessageLifecycle
-  ): Promise<TYPES.IMessageLifecycle> {
+    lifecycle: IMessageLifecycle
+  ): Promise<IMessageLifecycle> {
     if (!this.initialized) {
       throw new Error("Context Server not initialized");
     }
@@ -528,7 +525,7 @@ export class IdentityServerPostgres implements TYPES.IIdentityServer {
     systemPrompt: string,
     summaryPrompt: string,
     channelId: string | null,
-    lifecycle?: TYPES.IMessageLifecycle
+    lifecycle?: IMessageLifecycle
   ) {
     const summary = await generateText(
       this.modelInfo.generation,
@@ -562,7 +559,7 @@ export class IdentityServerPostgres implements TYPES.IIdentityServer {
   }
 }
 
-function checkApproval(daemonKey: string, lifecycle: TYPES.IMessageLifecycle) {
+function checkApproval(daemonKey: string, lifecycle: IMessageLifecycle) {
   const messageBytes = decodeUTF8(
     JSON.stringify(
       {
