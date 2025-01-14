@@ -342,7 +342,6 @@ export class Daemon implements IDaemon {
     lifecycle.output = await generateText(
       this.character.modelSettings.generation,
       this.modelApiKeys.generationKey,
-      this.character.identityPrompt ?? DEFAULT_IDENTITY_PROMPT(this),
       createPrompt(lifecycle)
     );
 

@@ -1,6 +1,8 @@
 name: daemon
 
 services:
+  mcp-servers:
+
   postgres:
     image: pgvector/pgvector:0.8.0-pg17
     environment:

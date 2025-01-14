@@ -36,7 +36,6 @@ export async function generateEmbeddings(
 export async function generateText(
   generationModelSettings: ModelSettings,
   generationModelKey: string,
-  systemPrompt: string,
   userMessage: string
 ): Promise<string> {
   switch (generationModelSettings?.provider) {
@@ -53,10 +52,6 @@ export async function generateText(
           {
             role: "system",
             content: SYSTEM_PROMPT,
-          },
-          {
-            role: "user",
-            content: systemPrompt,
           },
           {
             role: "user",
@@ -95,6 +90,9 @@ export async function generateText(
 
 export function createPrompt(lifecycle: IMessageLifecycle): string {
   return `
+  # Identity Prompt
+  ${lifecycle.identityPrompt}
+
   # Message
   ${lifecycle.message}
   
