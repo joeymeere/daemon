@@ -2,6 +2,23 @@ import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import type { Keypair } from "@solana/web3.js";
 import { z } from "zod";
 
+export const ZHook = z.object({
+  originServerUrl: z.string(),
+  daemonTool: z.enum(["sign"]),
+  daemonArgs: z.any(),
+  hookTool: z.object({
+    // If hoook server IS NOT indexed, we will NOT add it, just use it temporarily
+    hookServerUrl: z.string(), // The server we will submit the hook to
+    toolName: z.string(), // The tool of the server we will submit the hook to
+    toolArgs: z.any(), // The args for the tool
+  }),
+  additionalArgs: z.any(), // Useful for metadata to pass along
+  hookOutput: z.any().optional(), // The output of the hook
+});
+
+export type IHook = z.infer<typeof ZHook>;
+export type IHookLog = any;
+
 export const ZMessageLifecycle = z.object({
   daemonPubkey: z.string(),
   message: z.string(),
@@ -16,8 +33,10 @@ export const ZMessageLifecycle = z.object({
   tools: z.array(z.string()).default([]),
   generatedPrompt: z.string().default(""),
   output: z.string().default(""),
-  actions: z.array(z.string()).default([]),
-  postProcess: z.array(z.string()).default([]),
+  hooks: z.array(ZHook).default([]),
+  hooksLog: z.array(z.string()).default([]),
+  actionsLog: z.array(z.string()).default([]),
+  postProcessLog: z.array(z.string()).default([]),
 });
 
 export type IMessageLifecycle = z.infer<typeof ZMessageLifecycle>;

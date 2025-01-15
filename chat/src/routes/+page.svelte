@@ -16,7 +16,7 @@
     keypair: Keypair;
   };
   
-  $: OPENAI_API_KEY = "";
+  let OPENAI_API_KEY = $state("");
 
   const newCharacter = (name: string, identityPrompt: string, pubkey: string) => {
     let defaultCharacter: Character = {
@@ -49,17 +49,17 @@
     }
   }
 
-  let agents: Agent[] = [];
+  let agents: Agent[] = $state([]);
   
   let daemons: {
     [agentPubKey: string]: Daemon
   } = {};
-  let showModal = false;
-  let newAgentName = 'Bob the Builder';
-  let newAgentDescription = 'You are Bob the builder.';
+  let showModal = $state(false);
+  let newAgentName = $state('Bob the Builder');
+  let newAgentDescription = $state('You are Bob the builder.');
 
   let selectedAgent = agents[0];
-  let messageInput = '';
+  let messageInput = $state('');
 
   const fetchMessages = () => {
     return liveQuery(async () => {
@@ -88,7 +88,7 @@
     }
   }
 
-  $: messages = fetchMessages();
+  let messages = $state(fetchMessages());
   
   onMount(async () => {
     const dbAgents = await db.agents.toArray();

@@ -1,2 +1,2 @@
 export * from "./IdentityServerPostgres";
-export * from "./PersonalityServer";
+export * from "./ChatServer";

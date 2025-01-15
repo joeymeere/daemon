@@ -10,6 +10,7 @@ export function checkApproval(lifecycle: IMessageLifecycle) {
         message: lifecycle.message,
         createdAt: lifecycle.createdAt,
         messageId: lifecycle.messageId,
+        channelId: lifecycle.channelId ?? "",
       },
       null,
       0

@@ -22,7 +22,17 @@ Having modular tools by using JSON RPC as a communication method between them (a
 
 And since you can swap in modules, we can keep the base agent really simple, with just basic RAG for memory and identity and offload the rest to modular servers.
 
-## Getting Started
+## Quick Start with Chat
+
+You'll need Docker (or better yet Orbstack)
+
+```bash
+docker compose up -d
+```
+
+Then navigate to http://localhost:5173 to get started with an example chat application.
+
+## Installing Packages
 
 To get started, you can install the daemon package and start building your own agents.
 

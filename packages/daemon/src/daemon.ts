@@ -4,6 +4,8 @@ import {
   type ToolRegistration,
   type ITool,
   type IMessageLifecycle,
+  type IHook,
+  type IHookLog,
 } from "./types";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { SSEClientTransport } from "./SSEClientTransport.js";
@@ -290,7 +292,7 @@ export class Daemon implements IDaemon {
     const actions = opts?.actions ?? true;
     const postProcess = opts?.postProcess ?? true;
 
-    // Lifecycle: message -> fetchContext -> generateText -> takeActions -> postProcess
+    // Lifecycle: message -> fetchContext -> generateText -> takeActions -> hooks -> callHooks -> postProcess
     let lifecycle: IMessageLifecycle = {
       daemonPubkey: this.keypair.publicKey.toBase58(),
       daemonName: this.character?.name ?? "",
@@ -306,8 +308,10 @@ export class Daemon implements IDaemon {
       tools: [],
       generatedPrompt: "",
       output: "",
-      actions: [],
-      postProcess: [],
+      hooks: [],
+      hooksLog: [],
+      actionsLog: [],
+      postProcessLog: [],
     };
 
     // Generate Approval
@@ -339,6 +343,11 @@ export class Daemon implements IDaemon {
           return lfcyl.context;
         })
         .flat();
+      lifecycle.tools = contextResults
+        .map((lfcyl) => {
+          return lfcyl.tools;
+        })
+        .flat();
     }
 
     // Generate Text
@@ -363,9 +372,26 @@ export class Daemon implements IDaemon {
       }
 
       const actionResults = await Promise.all(actionPromises);
-      lifecycle.actions = actionResults
+      lifecycle.actionsLog = actionResults
         .map((lfcyl) => {
-          return lfcyl.actions;
+          return lfcyl.actionsLog;
+        })
+        .flat();
+      lifecycle.hooks = actionResults
+        .map((lfcyl) => {
+          return lfcyl.hooks;
+        })
+        .flat();
+
+      let hookPromises: Promise<any>[] = [];
+      for (const hook of lifecycle.hooks) {
+        hookPromises.push(this.hook(hook));
+      }
+
+      const hookResults = await Promise.all(hookPromises);
+      lifecycle.hooksLog = hookResults
+        .map((hookResult) => {
+          return hookResult;
         })
         .flat();
     }
@@ -384,9 +410,9 @@ export class Daemon implements IDaemon {
       }
 
       const postProcessResults = await Promise.all(postProcessPromises);
-      lifecycle.postProcess = postProcessResults
+      lifecycle.postProcessLog = postProcessResults
         .map((lfcyl) => {
-          return lfcyl.postProcess;
+          return lfcyl.postProcessLog;
         })
         .flat();
     }
@@ -395,14 +421,45 @@ export class Daemon implements IDaemon {
   }
 
   // Payload is b64 String
-  sign(payload: string): string {
+  sign(args: { payload: string }): string {
     if (!this.keypair) {
       throw new Error("Keypair not found");
     }
 
-    const messageBytes = Buffer.from(payload, "base64");
+    const messageBytes = Buffer.from(args.payload, "base64");
     const signature = nacl.sign.detached(messageBytes, this.keypair.secretKey);
     return Buffer.from(signature).toString("base64");
+  }
+
+  async hook(hook: IHook): Promise<IHookLog> {
+    try {
+      // Call the internal tool
+      switch (hook.daemonTool) {
+        case "sign":
+          hook.hookOutput = this.sign(hook.daemonArgs);
+          break;
+      }
+      // Create a client for the temp server
+      const client = new Client(
+        {
+          name: hook.hookTool.hookServerUrl,
+          version: "1.0.0",
+        },
+        { capabilities: {} }
+      );
+      // Call the tool
+      const result = await client.callTool({
+        name: hook.hookTool.toolName,
+        arguments: {
+          ...hook.hookTool.toolArgs,
+          daemonOutput: hook.hookOutput,
+        },
+      });
+      // Add result of tool to lifecycle by returning it;
+      return result;
+    } catch (e) {
+      throw e;
+    }
   }
 
   private generateApproval(lifecycle: IMessageLifecycle): IMessageLifecycle {
@@ -416,6 +473,7 @@ export class Daemon implements IDaemon {
           message: lifecycle.message,
           createdAt: lifecycle.createdAt,
           messageId: lifecycle.messageId,
+          channelId: lifecycle.channelId ?? "",
         },
         null,
         0
@@ -423,7 +481,9 @@ export class Daemon implements IDaemon {
       "utf-8"
     );
 
-    lifecycle.approval = this.sign(messageBytes.toString("base64"));
+    lifecycle.approval = this.sign({
+      payload: messageBytes.toString("base64"),
+    });
 
     return lifecycle;
   }
