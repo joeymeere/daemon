@@ -293,6 +293,7 @@ export class Daemon implements IDaemon {
     // Lifecycle: message -> fetchContext -> generateText -> takeActions -> postProcess
     let lifecycle: IMessageLifecycle = {
       daemonPubkey: this.keypair.publicKey.toBase58(),
+      daemonName: this.character?.name ?? "",
       messageId: nanoid(),
       message: message,
       createdAt: new Date().toISOString(),
@@ -302,6 +303,8 @@ export class Daemon implements IDaemon {
         this.character?.identityPrompt ?? DEFAULT_IDENTITY_PROMPT(this),
       embedding: [],
       context: [],
+      tools: [],
+      generatedPrompt: "",
       output: "",
       actions: [],
       postProcess: [],
@@ -339,10 +342,11 @@ export class Daemon implements IDaemon {
     }
 
     // Generate Text
+    lifecycle.generatedPrompt = createPrompt(lifecycle);
     lifecycle.output = await generateText(
       this.character.modelSettings.generation,
       this.modelApiKeys.generationKey,
-      createPrompt(lifecycle)
+      lifecycle.generatedPrompt
     );
 
     if (actions) {

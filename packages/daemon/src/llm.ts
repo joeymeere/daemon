@@ -126,13 +126,19 @@ export async function generateText(
 
 export function createPrompt(lifecycle: IMessageLifecycle): string {
   return `
+  # Name
+  ${lifecycle.daemonName}
+
   # Identity Prompt
   ${lifecycle.identityPrompt}
 
-  # Message
+  # User Message
   ${lifecycle.message}
   
   # Context
   ${lifecycle.context?.join("\n")}
+
+  # Tools
+  ${lifecycle.tools?.join("\n")}
   `;
 }
