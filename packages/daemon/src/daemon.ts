@@ -11,8 +11,8 @@ import type { TextContent } from "@modelcontextprotocol/sdk/types.js";
 import type { Keypair } from "@solana/web3.js";
 import { createPrompt, generateEmbeddings, generateText } from "./llm.js";
 import nacl from "tweetnacl";
-import { decodeUTF8 } from "tweetnacl-util";
 import { nanoid } from "nanoid";
+import { Buffer } from "buffer";
 
 const DEFAULT_IDENTITY_PROMPT = (daemon: IDaemon) => {
   return `
@@ -79,7 +79,6 @@ export class Daemon implements IDaemon {
         throw new Error("Private key does not match character pubkey");
       }
     }
-
     if (!opts.character) {
       // If id, then fetch character from Context Server
       try {
@@ -299,7 +298,8 @@ export class Daemon implements IDaemon {
       createdAt: new Date().toISOString(),
       approval: "",
       channelId: opts?.channelId ?? null,
-      identityPrompt: this.character?.identityPrompt ?? null,
+      identityPrompt:
+        this.character?.identityPrompt ?? DEFAULT_IDENTITY_PROMPT(this),
       embedding: [],
       context: [],
       output: "",
@@ -390,12 +390,23 @@ export class Daemon implements IDaemon {
     return lifecycle;
   }
 
+  // Payload is b64 String
+  sign(payload: string): string {
+    if (!this.keypair) {
+      throw new Error("Keypair not found");
+    }
+
+    const messageBytes = Buffer.from(payload, "base64");
+    const signature = nacl.sign.detached(messageBytes, this.keypair.secretKey);
+    return Buffer.from(signature).toString("base64");
+  }
+
   private generateApproval(lifecycle: IMessageLifecycle): IMessageLifecycle {
     if (!this.keypair) {
       throw new Error("Keypair not found");
     }
 
-    const messageBytes = decodeUTF8(
+    const messageBytes = Buffer.from(
       JSON.stringify(
         {
           message: lifecycle.message,
@@ -404,11 +415,11 @@ export class Daemon implements IDaemon {
         },
         null,
         0
-      )
+      ),
+      "utf-8"
     );
 
-    const signature = nacl.sign.detached(messageBytes, this.keypair.secretKey);
-    lifecycle.approval = Buffer.from(signature).toString("base64");
+    lifecycle.approval = this.sign(messageBytes.toString("base64"));
 
     return lifecycle;
   }

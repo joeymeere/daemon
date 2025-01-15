@@ -1,8 +1,19 @@
 name: daemon
 
 services:
-  mcp-servers:
-
+  chat:
+    build:
+      context: .
+      dockerfile: Chat.Dockerfile
+    ports:
+      - "3000:3000" # hono server
+      - "5173:5173" # sveltekit dev server
+    networks:
+      - daemon-network
+    environment:
+      POSTGRES_URL: postgres://postgres:postgres@postgres:5432/app
+    depends_on:
+      - postgres
   postgres:
     image: pgvector/pgvector:0.8.0-pg17
     environment:

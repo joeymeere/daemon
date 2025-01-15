@@ -239,6 +239,11 @@ export class IdentityServerPostgres implements IIdentityServer {
       throw new Error("Context Server not initialized");
     }
 
+    const existingCharacter = await this.fetchCharacter(character.pubkey);
+    if (existingCharacter) {
+      return { pubkey: character.pubkey };
+    }
+
     await this.db.insert(ContextServerSchema.daemons).values({
       pubkey: character.pubkey,
       character,

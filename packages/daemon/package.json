@@ -1,13 +1,13 @@
 {
   "name": "@spacemangaming/daemon",
   "author": "Spacemandev",
-  "version": "0.1.12",
+  "version": "0.1.13",
   "type": "module",
   "devDependencies": {
-    "@rolldown/plugin-node-polyfills": "^1.0.0",
+    "@rollup/plugin-typescript": "^12.1.2",
     "@types/bun": "latest",
     "drizzle-kit": "^0.30.1",
-    "rolldown": "^1.0.0-beta.1"
+    "rollup-plugin-node-polyfills": "^0.2.1"
   },
   "peerDependencies": {
     "typescript": "^5.0.0"
@@ -16,16 +16,17 @@
     "@anthropic-ai/sdk": "^0.33.1",
     "@modelcontextprotocol/sdk": "^1.1.1",
     "@solana/web3.js": "^1.98.0",
+    "buffer": "^6.0.3",
     "eventsource": "^3.0.2",
     "nanoid": "^5.0.9",
     "openai": "^4.78.1",
+    "rollup": "^4.30.1",
     "tweetnacl": "^1.0.3"
   },
   "scripts": {
-    "build": "bun build --target browser --outdir dist src/index.ts",
-    "build:types": "tsc --emitDeclarationOnly --declaration --outDir dist",
-    "build:all": "bun run build && bun run build:types",
-    "publish": "bun run build:all && bunx npm publish --access=public"
+    "build:all": "bun rollup -c rollup.config.js",
+    "build:types-only": "tsc --emitDeclarationOnly --declaration --outDir dist",
+    "publish": "bun run build:all && npm publish --access=public"
   },
   "files": [
     "dist"

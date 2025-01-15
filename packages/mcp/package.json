@@ -2,7 +2,7 @@
   "name": "@spacemangaming/mcp-servers",
   "description": "MCP Servers for Daemon Framework",
   "author": "Spacemandev",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "module": "index.ts",
   "type": "module",
   "devDependencies": {
@@ -15,7 +15,7 @@
     "build": "bun build --target node --outdir dist src/index.ts",
     "build:types": "tsc --emitDeclarationOnly --declaration --outDir dist",
     "build:all": "bun run build && bun run build:types",
-    "publish": "bun run build:all && bunx npm publish --access=public"
+    "publish": "bun run build:all && npm publish --access=public"
   },
   "files": [
     "dist"
