@@ -12,8 +12,13 @@ const idServer = new IdentityServerPostgres(
     }
 );
 
-await idServer.init();
-await idServer.start(parseInt(identityServicePort));
+try {
+    await idServer.init();
+    await idServer.start(parseInt(identityServicePort));
+} catch (e) {
+    console.error(`Failed to start identity server: ${e}`);
+    process.exit(1);
+}
 
 // Hono Proxy
 import { Hono } from 'hono';

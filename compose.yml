@@ -5,6 +5,7 @@ services:
     build:
       context: .
       dockerfile: Chat.Dockerfile
+    restart: on-failure
     ports:
       - "3000:3000" # hono server
       - "5173:5173" # sveltekit dev server
@@ -13,7 +14,9 @@ services:
     environment:
       POSTGRES_URL: postgres://postgres:postgres@postgres:5432/app
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
+
   postgres:
     image: pgvector/pgvector:0.8.0-pg17
     environment:
@@ -26,6 +29,11 @@ services:
       - postgres-data:/var/lib/postgresql/data
     networks:
       - daemon-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
 networks:
   daemon-network:

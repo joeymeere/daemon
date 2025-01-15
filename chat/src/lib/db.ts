@@ -22,8 +22,8 @@ interface Messages {
 }
 
 db.version(1).stores({
-    agents: '++pubkey, character, keypair, channelId',
-    messages: '++id, [agentPubKey], agentPubKey, message, from, timestamp'
+    agents: 'pubkey, character, keypair, channelId',
+    messages: 'id, agentPubKey, message, from, timestamp'
 });
 
 export type { Agent, Messages };

@@ -61,9 +61,15 @@
   let selectedAgent = agents[0];
   let messageInput = '';
 
-  $: messagesQuery = liveQuery(async () => {
-    return (await db.messages.where('agentPubKey').equals(selectedAgent?.character.pubkey || "").sortBy('timestamp'));
-  });
+  let fetchMessages = () => {
+    return liveQuery(async () => {
+      return (await db.messages.where('agentPubKey').equals(selectedAgent?.character.pubkey || "").sortBy('timestamp'));
+    });
+  }
+
+  $: messages = fetchMessages();
+  
+  
 
   onMount(async () => {
     const dbAgents = await db.agents.toArray();
@@ -143,6 +149,7 @@
     });
     daemons[newAgent.character.pubkey] = newDaemon;
     agents = [...agents, newAgent];
+    selectedAgent = newAgent;
   }
 
   function deleteAgent(id: number) {
@@ -164,13 +171,6 @@
       console.log('Sending message:', messageInput);
       console.log('Selected Agent:', selectedAgent.character.pubkey);
       console.log('Daemons:', daemons[selectedAgent.character.pubkey]);
-
-      const response = await daemons[selectedAgent.character.pubkey].message(messageInput, {
-        channelId: selectedAgent.channelId,
-      });
-
-      console.log('Full Response:', response);
-
       await db.messages.add({
         id: nanoid(),
         agentPubKey: selectedAgent.character.pubkey,
@@ -178,7 +178,14 @@
         from: 'user',
         timestamp: Date.now(),
       });
+      messages = fetchMessages();
 
+      const response = await daemons[selectedAgent.character.pubkey].message(messageInput, {
+        channelId: selectedAgent.channelId,
+      });
+
+      messageInput = '';
+      console.log('Full Response:', response);
       await db.messages.add({
         id: nanoid(),
         agentPubKey: selectedAgent.character.pubkey,
@@ -186,8 +193,7 @@
         from: 'agent',
         timestamp: Date.now(),
       });
-      
-      messageInput = '';
+      messages = fetchMessages();
     }
   }
 
@@ -249,7 +255,7 @@
     {/if}
 
     <div class="flex-1 overflow-y-auto">
-      {#each $messagesQuery as message}
+      {#each $messages as message}
         <div class="p-4 {message.from === 'user' ? 'bg-blue-50' : 'bg-gray-50'}">
           <p class="text-gray-600">{message.message}</p>
         </div>
