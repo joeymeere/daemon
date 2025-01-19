@@ -35,9 +35,26 @@ services:
       timeout: 5s
       retries: 5
 
+    neo4j:
+      image: neo4j:latest
+      ports:
+        - "7474:7474"
+        - "7687:7687"
+      volumes:
+        - neo4j_data:/data
+      environment:
+        - NEO4J_AUTH=neo4j/lightrag
+      healthcheck:
+        test: wget http://localhost:7474 || exit 1
+        interval: 1s
+        timeout: 10s
+        retries: 20
+        start_period: 3s
+
 networks:
   daemon-network:
     driver: bridge
 
 volumes:
   postgres-data:
+  neo4j_data:

@@ -28,7 +28,6 @@ export const ZMessageLifecycle = z.object({
   channelId: z.string().nullable(),
   daemonName: z.string().default(""),
   identityPrompt: z.string().nullable(),
-  embedding: z.array(z.number()).default([]),
   context: z.array(z.string()).default([]),
   tools: z.array(z.string()).default([]),
   generatedPrompt: z.string().default(""),

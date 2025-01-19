@@ -2,6 +2,8 @@
 
 ## 0.1.16 - Unreleased
 
+    - Took out embeddings from message lifecycle
+
 ## 0.1.15 - 2025-01-15 2:54 PM
 
     - Added hook system to daemon that allows you to run internal tools and hook back to servers

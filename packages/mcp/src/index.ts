@@ -1,2 +1,2 @@
 export * from "./IdentityServerPostgres";
-export * from "./ChatServer";
+export * as MemoryServer from "./MemoryServer/index";

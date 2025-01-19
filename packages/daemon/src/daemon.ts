@@ -303,7 +303,6 @@ export class Daemon implements IDaemon {
       channelId: opts?.channelId ?? null,
       identityPrompt:
         this.character?.identityPrompt ?? DEFAULT_IDENTITY_PROMPT(this),
-      embedding: [],
       context: [],
       tools: [],
       generatedPrompt: "",
@@ -316,13 +315,6 @@ export class Daemon implements IDaemon {
 
     // Generate Approval
     lifecycle = this.generateApproval(lifecycle);
-
-    // Generate Embeddings
-    lifecycle.embedding = await generateEmbeddings(
-      this.character.modelSettings.embedding,
-      this.modelApiKeys.embeddingKey,
-      message
-    );
 
     if (context) {
       let contextPromises: Promise<IMessageLifecycle>[] = [];
@@ -431,7 +423,7 @@ export class Daemon implements IDaemon {
     return Buffer.from(signature).toString("base64");
   }
 
-  async hook(hook: IHook): Promise<IHookLog> {
+  private async hook(hook: IHook): Promise<IHookLog> {
     try {
       // Call the internal tool
       switch (hook.daemonTool) {

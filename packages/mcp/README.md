@@ -16,4 +16,5 @@ bun add @spacemangaming/daemon @spacemangaming/mcp-servers
 
 Tracks logs of all incoming and outgoing messages and stores the Daemon's character file.
 
-### Personality Server
+### Knowledge Server
+For any given daemon's pubkey, it will store all of the messages (tagged with optional channelId), and provide any matching context strings when a new message comes in.

@@ -10,7 +10,7 @@ What are we building?
 TODO:
 
 ------ Make channel Id part of approval
+------ Action Spec for Server > Agent
 
-- Action Spec for Server > Agent
 - Memary Typescript Server
 -
