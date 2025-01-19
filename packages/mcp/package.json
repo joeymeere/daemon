@@ -22,13 +22,13 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "dependencies": {
-    "@spacemangaming/daemon": "^0.1.12",
+    "@spacemangaming/daemon": "link:@spacemangaming/daemon",
+    "compute-cosine-similarity": "^1.1.0",
     "drizzle-orm": "^0.38.4",
     "litemcp": "^0.8.0",
     "nanoid": "^5.0.9",
+    "neo4j-driver": "^5.15.0",
     "openai": "^4.78.1",
-    "postgres": "^3.4.5",
-    "compute-cosine-similarity": "^1.1.0",
-    "neo4j-driver": "^5.15.0"
+    "postgres": "^3.4.5"
   }
 }

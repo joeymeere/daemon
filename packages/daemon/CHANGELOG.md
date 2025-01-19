@@ -3,6 +3,7 @@
 ## 0.1.16 - Unreleased
 
     - Took out embeddings from message lifecycle
+    - Took out functions from IDaemonMCPServer (they should be added as serverTools not exposed functions)
 
 ## 0.1.15 - 2025-01-15 2:54 PM
 

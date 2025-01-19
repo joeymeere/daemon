@@ -19,6 +19,7 @@ export interface StorageConfig {
   openai: {
     apiKey: string;
     model?: string; // optional, will default to text-embedding-3-small
+    entityExtractionModel?: string; // optional, will default to gpt-4o
   };
 }
 
@@ -45,4 +46,28 @@ export interface GraphRelation {
   targetId: string;
   type: string;
   channelId?: string;
+  daemonPubkey: string;  // Adding required daemonPubkey
+}
+
+// Entity extraction types
+export interface Entity {
+  name: string;
+  type: string;
+  description: string;
+  daemonPubkey: string;  // Adding required daemonPubkey
+  channelId?: string;    // Adding optional channelId
+}
+
+export interface Relationship {
+  sourceEntity: string;
+  targetEntity: string;
+  description: string;
+  keywords: string[];
+  strength: number;
+}
+
+export interface ExtractedContent {
+  entities: Entity[];
+  relationships: Relationship[];
+  contentKeywords: string[];
 }

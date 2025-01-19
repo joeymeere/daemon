@@ -320,7 +320,7 @@ export class IdentityServerPostgres implements IIdentityServer {
       lifecycle: lifecycle,
     });
 
-    lifecycle.postProcess.push(
+    lifecycle.postProcessLog.push(
       JSON.stringify({
         server: this.server.name,
         tool: "pp_createLog",

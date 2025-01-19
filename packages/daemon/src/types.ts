@@ -95,15 +95,7 @@ export type ITool = z.infer<typeof ZTool>;
 
 export interface IDaemonMCPServer {
   // Server Info
-  getServerInfo(): Promise<{
-    name: string;
-    description: string;
-  }>;
-  // List Tools
-  listServerTools(): Promise<ITool[]>;
-  listContextTools(): Promise<ITool[]>;
-  listActionTools(): Promise<ITool[]>;
-  listPostProcessTools(): Promise<ITool[]>;
+  // Server Tools should include listServerTools, listContextTools, listActionTools, listPostProcessTools
 }
 
 // IDENTITY SERVER STUFF
