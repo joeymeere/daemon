@@ -275,8 +275,8 @@
     <div class="flex-1 flex flex-col">
       {#if selectedAgent}
         <div class="p-6 border-b">
-          <h2 class="text-xl font-medium text-gray-900">{selectedAgent.character.name}</h2>
-          <p class="text-gray-500">{selectedAgent.character.identityPrompt}</p>
+          <h2 class="text-xl font-medium text-gray-900">{selectedAgent?.character?.name || ''}</h2>
+          <p class="text-gray-500">{selectedAgent?.character?.identityPrompt || ''}</p>
         </div>
       {/if}
 

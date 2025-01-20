@@ -98,9 +98,12 @@ export class MemoryServer implements IDaemonMCPServer {
         this.server.addTool({
             name: "ctx_getContext",
             description: "Get context for a message",
-            parameters: ZMessageLifecycle,
-            execute: async (lifecycle: IMessageLifecycle) => {
-                return await this.getContextFromQuery(lifecycle);
+            parameters: z.object({
+                lifecycle: ZMessageLifecycle,
+                args: z.any(),
+            }),
+            execute: async (args: {lifecycle: IMessageLifecycle, args?: any}) => {
+                return await this.getContextFromQuery(args.lifecycle);
             },
         });
         // Action Tools
@@ -108,9 +111,12 @@ export class MemoryServer implements IDaemonMCPServer {
         this.server.addTool({
             name: "pp_createKnowledge",
             description: "Create a knowledge",
-            parameters: ZMessageLifecycle,
-            execute: async (lifecycle: IMessageLifecycle) => {
-                return await this.insertKnowledge(lifecycle);
+            parameters: z.object({
+                lifecycle: ZMessageLifecycle,
+                args: z.any(),
+            }),
+            execute: async (args: {lifecycle: IMessageLifecycle, args?: any}) => {
+                return await this.insertKnowledge(args.lifecycle);
             },
         });
 

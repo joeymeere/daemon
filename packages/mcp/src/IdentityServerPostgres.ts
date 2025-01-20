@@ -35,13 +35,36 @@ export class IdentityServerPostgres implements IIdentityServer {
   }
   
   async init(pgOpts: {
-    url?: string;
     host?: string;
     port?: number;
     user?: string;
     password?: string;
     database?: string;
   }): Promise<void> {
+    // First connect to default postgres database to create the target database if it doesn't exist
+    if (pgOpts.database) {
+      const tempDb = drizzle({
+        connection: {
+          ...pgOpts,
+          database: 'postgres' // Connect to default database first
+        },
+        schema: ContextServerSchema,
+        casing: "snake_case",
+      });
+
+      try {
+        await tempDb.execute(sql`CREATE DATABASE ${sql.identifier(pgOpts.database)}`);
+      } catch (error: any) {
+        // Ignore error if database already exists
+        if (!error.message.includes('already exists')) {
+          throw error;
+        }
+      } finally {
+        // Close the temporary connection
+        await (tempDb as any).connection?.end?.();
+      }
+    }
+
     this.db = drizzle({
       connection: pgOpts,
       schema: ContextServerSchema,

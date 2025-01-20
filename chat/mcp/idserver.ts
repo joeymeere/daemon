@@ -4,7 +4,7 @@ const idProxy = 3001;
 
 try {
     const idServer = new IdentityServerPostgres({name: "idServer"});
-    await idServer.init({url: 'postgres://postgres:postgres@postgres:5432/idserver'});
+    await idServer.init({host: 'postgres', port: 5432, user: 'postgres', password: 'postgres', database: 'idserver'});
     await idServer.start(idPort);
     console.log('Identity Server started');
 } catch (e) {
