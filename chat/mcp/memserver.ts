@@ -8,7 +8,8 @@ try {
         neo4j: {
             uri: process.env.NEO4J_URI ?? 'bolt://neo4j:7687',
             username: process.env.NEO4J_USERNAME ?? 'neo4j',
-            password: process.env.NEO4J_PASSWORD ?? 'lightrag'
+            password: process.env.NEO4J_PASSWORD ?? 'lightrag',
+            database: process.env.NEO4J_DATABASE ?? 'neo4j'
         },
         postgres: {
             host: process.env.POSTGRES_HOST ?? 'postgres',

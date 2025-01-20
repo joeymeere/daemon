@@ -25,10 +25,15 @@ export class LightRAG {
   }
 
   async init(): Promise<void> {
-    await Promise.all([
-      this.neo4j.init(),
-      this.postgres.init()
-    ]);
+    try {
+      await Promise.all([
+        this.neo4j.init(),
+        this.postgres.init()
+      ]);
+    } catch (error) {
+      console.error("Failed to initialize LightRAG: ", error)
+      throw new Error(`Failed to initialize LightRAG: ${error}`);
+    }
   }
 
   async close(): Promise<void> {
@@ -131,58 +136,65 @@ Text: ${text}`;
   }
 
   async insert(text: string, daemonPubkey: string, channelId?: string): Promise<void> {
+    console.log("RAG - Inserting knowledge", text);
     const timestamp = Date.now();
     const id = nanoid();
-    const [vector, extractedContent] = await Promise.all([
-      this.getEmbedding(text),
-      this.extractEntities(text, daemonPubkey, channelId)
-    ]);
+    try {
+      const [vector, extractedContent] = await Promise.all([
+        this.getEmbedding(text),
+        this.extractEntities(text, daemonPubkey, channelId)
+      ]);
+      console.log("Extracted content", extractedContent);
 
-    // Create vector data
-    const vectorData: VectorData = {
-      id,
-      text,
-      vector,
-      channelId,
-      daemonPubkey,
-      timestamp
-    };
+      // Create vector data
+      const vectorData: VectorData = {
+        id,
+        text,
+        vector,
+        channelId,
+        daemonPubkey,
+        timestamp
+      };
 
-    // Create graph node for the text itself
-    const textNode: GraphNode = {
-      id,
-      text,
-      type: 'text',
-      channelId,
-      daemonPubkey,
-      timestamp
-    };
+      // Create graph node for the text itself
+      const textNode: GraphNode = {
+        id,
+        text,
+        type: 'text',
+        channelId,
+        daemonPubkey,
+        timestamp
+      };
 
-    // Create nodes and relationships for extracted entities
-    const entityNodes: GraphNode[] = extractedContent.entities.map(entity => ({
-      id: nanoid(),
-      text: entity.name,
-      type: entity.type,
-      channelId,
-      daemonPubkey,
-      timestamp
-    }));
+      // Create nodes and relationships for extracted entities
+      const entityNodes: GraphNode[] = extractedContent.entities.map(entity => ({
+        id: nanoid(),
+        text: entity.name,
+        type: entity.type,
+        channelId,
+        daemonPubkey,
+        timestamp
+      }));
 
-    const entityRelations: GraphRelation[] = extractedContent.relationships.map(rel => ({
-      sourceId: entityNodes.find(n => n.text === rel.sourceEntity)?.id || '',
-      targetId: entityNodes.find(n => n.text === rel.targetEntity)?.id || '',
-      type: rel.keywords.join(','),
-      channelId,
-      daemonPubkey
-    })).filter(rel => rel.sourceId && rel.targetId);
+      const entityRelations: GraphRelation[] = extractedContent.relationships.map(rel => ({
+        sourceId: entityNodes.find(n => n.text === rel.sourceEntity)?.id || '',
+        targetId: entityNodes.find(n => n.text === rel.targetEntity)?.id || '',
+        type: rel.keywords.join(','),
+        channelId,
+        daemonPubkey
+      })).filter(rel => rel.sourceId && rel.targetId);
 
-    // Insert everything
-    await Promise.all([
-      this.postgres.insert(vectorData),
-      this.neo4j.insertNode(textNode),
-      ...entityNodes.map(node => this.neo4j.insertNode(node)),
-      ...entityRelations.map(rel => this.neo4j.insertRelation(rel))
-    ]);
+      // Insert everything
+      await Promise.all([
+        this.postgres.insert(vectorData),
+        this.neo4j.insertNode(textNode),
+        ...entityNodes.map(node => this.neo4j.insertNode(node)),
+        ...entityRelations.map(rel => this.neo4j.insertRelation(rel))
+      ]);
+    } catch (err) {
+      console.error("RAG - Error inserting knowledge", err);
+      throw err;
+    }
   }
 
   async query(text: string, daemonPubkey: string, channelId?: string): Promise<Array<{text: string, score: number}>> {

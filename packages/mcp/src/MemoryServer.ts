@@ -16,6 +16,7 @@ export class MemoryServer implements IDaemonMCPServer {
     
     async init(config: StorageConfig): Promise<void> {
         this.lrag = new LightRAG(config);
+        await this.lrag.init();
     }
     
     async stop(): Promise<void> {
@@ -151,13 +152,12 @@ export class MemoryServer implements IDaemonMCPServer {
             }
             
             const msgToInsert = `
-            # User Message
-            ${lifecycle.message}
-            
-            # Agent Reply
-            ${lifecycle.output}            
+# User Message
+${lifecycle.message}
+
+# Agent Reply
+${lifecycle.output}            
             `
-            
             await this.lrag.insert(msgToInsert, lifecycle.daemonPubkey, lifecycle.channelId ?? undefined);
             lifecycle.postProcessLog.push(
                 JSON.stringify({

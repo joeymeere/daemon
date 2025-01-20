@@ -12,10 +12,14 @@ services:
       - "6001:6001" # id server
       - "6002:6002" # mem server
       - "5173:5173" # sveltekit dev server
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
     networks:
       - daemon-network
     depends_on:
       postgres:
+        condition: service_healthy
+      neo4j:
         condition: service_healthy
 
   postgres:
@@ -45,12 +49,13 @@ services:
       - neo4j_data:/data
     environment:
       - NEO4J_AUTH=neo4j/lightrag
+    networks:
+      - daemon-network
     healthcheck:
-      test: wget http://localhost:7474 || exit 1
-      interval: 1s
-      timeout: 10s
-      retries: 20
-      start_period: 3s
+      test: ["CMD", "neo4j", "status"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
 networks:
   daemon-network:

@@ -51,13 +51,17 @@ export class PostgresStorage {
         channel_id TEXT,
         daemon_pubkey TEXT NOT NULL,
         timestamp BIGINT NOT NULL
-      );
-      
+      )
+    `;
+    
+    await this.sql`
       CREATE INDEX IF NOT EXISTS idx_vectors_channel 
-      ON vectors(channel_id);
+      ON vectors(channel_id)
+    `;
 
+    await this.sql`
       CREATE INDEX IF NOT EXISTS idx_vectors_daemon_pubkey
-      ON vectors(daemon_pubkey);
+      ON vectors(daemon_pubkey)
     `;
   }
 

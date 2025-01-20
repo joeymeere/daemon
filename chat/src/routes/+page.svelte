@@ -20,23 +20,23 @@
 
   const newCharacter = (name: string, identityPrompt: string, pubkey: string) => {
     let defaultCharacter: Character = {
-    name: 'Bob',
-    pubkey: '123',
-    identityPrompt: 'You are Bob',
-    identityServerUrl: 'http://localhost:3001/sse',
-    modelSettings: {
-      generation: {
-        provider: 'openai',
-        endpoint: 'https://api.openai.com/v1',
-        name: 'gpt-4o',
-        apiKey: OPENAI_API_KEY,
-      },
-      embedding: {
-        provider: 'openai',
-        endpoint: 'https://api.openai.com/v1',
-        name: 'text-embedding-3-small',
-        apiKey: OPENAI_API_KEY,
+      name: 'Bob',
+      pubkey: '123',
+      identityPrompt: 'You are Bob',
+      identityServerUrl: 'http://localhost:3001/sse',
+      modelSettings: {
+        generation: {
+          provider: 'openai',
+          endpoint: 'https://api.openai.com/v1',
+          name: 'gpt-4o',
+          apiKey: OPENAI_API_KEY,
         },
+        embedding: {
+          provider: 'openai',
+          endpoint: 'https://api.openai.com/v1',
+          name: 'text-embedding-3-small',
+          apiKey: OPENAI_API_KEY,
+          },
       },
       bootstrap: [{
         serverUrl: 'http://localhost:3002/sse', //memoryServer
@@ -108,6 +108,7 @@
     }));
     if (agents.length > 0) {
       selectedAgent = agents[0];
+      messages = fetchMessages();
     }
   });
   
@@ -117,7 +118,6 @@
       return;
     }
 
-    console.log('Adding new agent', name, identityPrompt);
     const keypair = Keypair.generate();
     const newAgent: Agent = {
       id: agents.length + 1,
@@ -165,7 +165,7 @@
     delete daemons[agents[id].character.pubkey];
     agents = agents.filter(agent => agent.id !== id);
     if (selectedAgent?.id === id) {
-      selectedAgent = agents[0];
+      selectedAgent = agents[0] ?? undefined;
     }
   }
 
@@ -181,7 +181,6 @@
     }
 
     if (messageInput.trim()) {
-      console.log('Sending message:', messageInput);
       await db.messages.add({
         id: nanoid(),
         agentPubKey: selectedAgent.character.pubkey,

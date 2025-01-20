@@ -8,17 +8,34 @@ export class Neo4jStorage {
   constructor(config: Neo4jConfig) {
     this.driver = neo4j.driver(
       config.uri,
-      neo4j.auth.basic(config.username, config.password)
+      neo4j.auth.basic(config.username, config.password),
+      {
+        encrypted: false,
+        trust: 'TRUST_ALL_CERTIFICATES',
+        maxConnectionPoolSize: 50,
+        connectionTimeout: 5000
+      }
     );
-    this.database = config.database;
+    this.database = config.database ?? 'lightrag';
   }
 
   async init(): Promise<void> {
     try {
+      
+      // Use the default 'neo4j' database if no specific database is set
+      this.database = this.database || 'neo4j';
+      
+      // Verify connection using the selected database
       const session = this.driver.session({ database: this.database });
-      await session.close();
+      try {
+        await session.run('RETURN 1');
+        console.log(`Successfully connected to Neo4j database: ${this.database}`);
+      } finally {
+        await session.close();
+      }
     } catch (error) {
-      throw new Error(`Failed to connect to Neo4j: ${error}`);
+      console.error("Neo4j initialization error:", error);
+      throw error;
     }
   }
 
@@ -27,7 +44,11 @@ export class Neo4jStorage {
   }
 
   private getSession(): Session {
-    return this.driver.session({ database: this.database });
+    try {
+      return this.driver.session({ database: this.database });
+    } catch (error) {
+      throw new Error(`Failed to connect to Neo4j: ${error}`);
+    }
   }
 
   async insertNode(node: GraphNode): Promise<void> {
