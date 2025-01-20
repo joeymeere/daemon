@@ -15,25 +15,26 @@
         "devmcp": "bun run mcp & bun run dev --host"
     },
     "devDependencies": {
-        "@sveltejs/adapter-auto": "^3.0.0",
-        "@sveltejs/kit": "^2.0.0",
-        "@sveltejs/vite-plugin-svelte": "^4.0.0",
+        "@sveltejs/adapter-auto": "^3.3.1",
+        "@sveltejs/kit": "^2.16.0",
+        "@sveltejs/vite-plugin-svelte": "^4.0.4",
         "autoprefixer": "^10.4.20",
-        "postcss": "^8.5.0",
-        "prettier": "^3.3.2",
-        "prettier-plugin-svelte": "^3.2.6",
-        "svelte": "^5.0.0",
-        "svelte-check": "^4.0.0",
+        "postcss": "^8.5.1",
+        "prettier": "^3.4.2",
+        "prettier-plugin-svelte": "^3.3.3",
+        "svelte": "^5.19.0",
+        "svelte-check": "^4.1.4",
         "tailwindcss": "^3.4.17",
-        "typescript": "^5.0.0",
+        "typescript": "^5.7.3",
         "vite": "^5.4.11"
     },
     "dependencies": {
         "@spacemangaming/daemon": "link:@spacemangaming/daemon",
         "@spacemangaming/mcp-servers": "link:@spacemangaming/mcp-servers",
         "bs58": "^6.0.0",
-        "dexie": "^4.0.10",
-        "hono": "^4.6.16",
+        "dexie": "^4.0.11",
+        "esbuild": "0.21.5",
+        "hono": "^4.6.17",
         "nanoid": "^5.0.9"
     }
 }

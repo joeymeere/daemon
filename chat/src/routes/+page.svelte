@@ -23,7 +23,7 @@
     name: 'Bob',
     pubkey: '123',
     identityPrompt: 'You are Bob',
-    identityServerUrl: 'http://localhost:3000/sse',
+    identityServerUrl: 'http://localhost:3001/sse',
     modelSettings: {
       generation: {
         provider: 'openai',
@@ -38,7 +38,10 @@
         apiKey: OPENAI_API_KEY,
         },
       },
-      bootstrap: []
+      bootstrap: [{
+        serverUrl: 'http://localhost:3002/sse', //memoryServer
+        tools: [] 
+      }]
     }
     
     return {
@@ -58,7 +61,7 @@
   let newAgentName = $state('Bob the Builder');
   let newAgentDescription = $state('You are Bob the builder.');
 
-  let selectedAgent = agents[0];
+  let selectedAgent = $state<Agent | null>(null);
   let messageInput = $state('');
 
   const fetchMessages = () => {
@@ -90,7 +93,7 @@
 
   let messages = $state(fetchMessages());
   
-  onMount(async () => {
+  onMount(async () => {    
     const dbAgents = await db.agents.toArray();
     let i = 0;
     agents = dbAgents.map(agent => ({
@@ -98,6 +101,9 @@
       ...agent,
       keypair: Keypair.fromSecretKey(bs58.decode(agent.secretKey)),
     }));
+    if (agents.length > 0) {
+      selectedAgent = agents[0];
+    }
   });
   
   async function addNewAgent(name: string, identityPrompt: string) {
@@ -171,8 +177,6 @@
 
     if (messageInput.trim()) {
       console.log('Sending message:', messageInput);
-      console.log('Selected Agent:', selectedAgent.character.pubkey);
-      console.log('Daemons:', daemons[selectedAgent.character.pubkey]);
       await db.messages.add({
         id: nanoid(),
         agentPubKey: selectedAgent.character.pubkey,
@@ -220,7 +224,7 @@
       placeholder="Enter your OpenAI API key"
       class="p-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 flex-grow max-w-xl"
     />
-    <button on:click={loadDaemonsWithApiKey} class="p-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors">OpenAI Key</button>
+    <button onclick={loadDaemonsWithApiKey} class="p-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors">OpenAI Key</button>
   </div>
 
   <!-- Main content - use flex-1 to fill remaining space -->
@@ -228,7 +232,7 @@
     <!-- Sidebar -->
     <div class="w-80 border-r flex flex-col">
       <button
-        on:click={openModal}
+        onclick={openModal}
         class="m-4 p-3 bg-[#4477FF] text-white rounded-lg flex items-center justify-center gap-2 hover:bg-blue-600 transition-colors"
       >
         <span class="text-xl">+</span>
@@ -239,8 +243,8 @@
         {#each agents as agent}
           <div
             class="p-4 cursor-pointer hover:bg-gray-50 flex justify-between items-start {selectedAgent?.id === agent.id ? 'bg-blue-50' : ''}"
-            on:click={() => {selectedAgent = agent; messages = fetchMessages();}}
-            on:keydown={(e) => e.key === 'Enter' && (selectedAgent = agent) }
+            onclick={() => {selectedAgent = agent; messages = fetchMessages();}}
+            onkeydown={(e) => e.key === 'Enter' && (selectedAgent = agent) }
             role="button"
             tabindex="0"
           >
@@ -249,7 +253,7 @@
               <p class="text-gray-500 text-sm">{agent.character.identityPrompt.substring(0, 20)}...</p>
             </div>
             <button
-              on:click|stopPropagation={() => deleteAgent(agent.id)}
+              onclick={() => deleteAgent(agent.id)}
               class="text-gray-400 hover:text-gray-600"
               aria-label="Delete agent"
             >
@@ -286,10 +290,10 @@
           bind:value={messageInput}
           placeholder="Type your message..."
           class="flex-1 p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-600"
-          on:keydown={(e) => e.key === 'Enter' && sendMessage()}
+          onkeydown={(e) => e.key === 'Enter' && sendMessage()}
         />
         <button
-          on:click={sendMessage}
+          onclick={sendMessage}
           class="p-3 bg-[#4477FF] text-white rounded-lg hover:bg-blue-600 transition-colors"
           disabled={!messageInput.trim()}
           aria-label="Send message"
@@ -328,13 +332,13 @@
           </div>
           <div class="flex justify-end gap-2">
             <button
-              on:click={closeModal}
+              onclick={closeModal}
               class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-400"
             >
               Cancel
             </button>
             <button
-              on:click={() => {
+              onclick={() => {
                 addNewAgent(newAgentName, newAgentDescription);
                 closeModal();
               }}

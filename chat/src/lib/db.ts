@@ -4,6 +4,7 @@ import Dexie from 'dexie';
 const db = new Dexie('daemon-chat') as Dexie & {
     agents: Dexie.Table<Agent, string>;
     messages: Dexie.Table<Messages, number>;
+    settings: Dexie.Table<Settings, string>;
 };
 
 interface Agent {
@@ -21,9 +22,15 @@ interface Messages {
     timestamp: number;
 }
 
+interface Settings {
+    key: string;
+    value: string;
+}
+
 db.version(1).stores({
     agents: 'pubkey, character, keypair, channelId',
-    messages: 'id, agentPubKey, message, from, timestamp'
+    messages: 'id, agentPubKey, message, from, timestamp',
+    settings: 'key, value'
 });
 
 export type { Agent, Messages };

@@ -7,7 +7,8 @@ services:
       dockerfile: Chat.Dockerfile
     restart: on-failure
     ports:
-      - "3000:3000" # hono server
+      - "3001:3001" # id server proxy
+      - "3002:3002" # mem server proxy
       - "5173:5173" # sveltekit dev server
     networks:
       - daemon-network
@@ -35,21 +36,21 @@ services:
       timeout: 5s
       retries: 5
 
-    neo4j:
-      image: neo4j:latest
-      ports:
-        - "7474:7474"
-        - "7687:7687"
-      volumes:
-        - neo4j_data:/data
-      environment:
-        - NEO4J_AUTH=neo4j/lightrag
-      healthcheck:
-        test: wget http://localhost:7474 || exit 1
-        interval: 1s
-        timeout: 10s
-        retries: 20
-        start_period: 3s
+  neo4j:
+    image: neo4j:latest
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    volumes:
+      - neo4j_data:/data
+    environment:
+      - NEO4J_AUTH=neo4j/lightrag
+    healthcheck:
+      test: wget http://localhost:7474 || exit 1
+      interval: 1s
+      timeout: 10s
+      retries: 20
+      start_period: 3s
 
 networks:
   daemon-network:

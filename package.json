@@ -8,7 +8,9 @@
   },
   "type": "module",
   "workspaces": [
-    "packages/*"
+    "packages/daemon",
+    "packages/mcp",
+    "chat/"
   ],
   "scripts": {}
 }

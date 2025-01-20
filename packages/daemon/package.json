@@ -4,10 +4,8 @@
   "version": "0.1.15",
   "type": "module",
   "devDependencies": {
-    "@rollup/plugin-typescript": "^12.1.2",
     "@types/bun": "latest",
-    "drizzle-kit": "^0.30.1",
-    "rollup-plugin-node-polyfills": "^0.2.1"
+    "drizzle-kit": "^0.30.1"
   },
   "peerDependencies": {
     "typescript": "^5.0.0"
@@ -20,12 +18,14 @@
     "eventsource": "^3.0.2",
     "nanoid": "^5.0.9",
     "openai": "^4.78.1",
-    "rollup": "^4.30.1",
-    "tweetnacl": "^1.0.3"
+    "tweetnacl": "^1.0.3",
+    "tweetnacl-util": "^0.15.1"
   },
   "scripts": {
-    "build:all": "bun rollup -c rollup.config.js",
-    "build:types-only": "tsc --emitDeclarationOnly --declaration --outDir dist",
+    "prepare": "bun run build:all",
+    "build": "bun build ./src/index.ts --outdir ./dist",
+    "build:all": "bun run build && bun run build:types",
+    "build:types": "tsc --emitDeclarationOnly --declaration --outDir dist",
     "publish": "bun run build:all && npm publish --access=public"
   },
   "files": [

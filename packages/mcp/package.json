@@ -29,6 +29,7 @@
     "nanoid": "^5.0.9",
     "neo4j-driver": "^5.15.0",
     "openai": "^4.78.1",
-    "postgres": "^3.4.5"
+    "postgres": "^3.4.5",
+    "zod": "^3.24.1"
   }
 }

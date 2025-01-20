@@ -56,13 +56,11 @@ export class IdentityServerPostgres implements IIdentityServer {
     await this.db.execute(
       sql`CREATE TABLE IF NOT EXISTS daemons (pubkey text PRIMARY KEY, character jsonb)`
     );
-    console.log("Created daemons table");
 
     // Logs
     await this.db.execute(
       sql`CREATE TABLE IF NOT EXISTS logs (id text PRIMARY KEY, daemon_pubkey text NOT NULL, channel_id text, created_at timestamp NOT NULL, lifecycle jsonb)`
     );
-    console.log("Created logs table");
 
     this.initialized = true;
   }
