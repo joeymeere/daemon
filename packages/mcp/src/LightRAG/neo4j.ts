@@ -21,7 +21,6 @@ export class Neo4jStorage {
 
   async init(): Promise<void> {
     try {
-      
       // Use the default 'neo4j' database if no specific database is set
       this.database = this.database || 'neo4j';
       
@@ -86,7 +85,9 @@ export class Neo4jStorage {
           MATCH (target:Node {id: $targetId})
           CREATE (source)-[r:${relation.type} {
             channelId: $channelId,
-            daemonPubkey: $daemonPubkey
+            daemonPubkey: $daemonPubkey,
+            keywords: $keywords,
+            strength: $strength
           }]->(target)
         `;
         await tx.run(query, relation);
@@ -104,21 +105,34 @@ export class Neo4jStorage {
           ? 'AND n.channelId = $channelId'
           : '';
         
+        // Split input text into words and create a WHERE clause that matches any of the words
+        const words = text.toLowerCase().split(/\s+/).filter(word => word.length > 0);
+        const wordMatchConditions = words
+          .map((_, index) => `CASE WHEN toLower(n.text) CONTAINS $words[${index}] THEN 1 ELSE 0 END`)
+          .join(' + ');
+        
         const query = `
           MATCH (n:Node)
-          WHERE n.text CONTAINS $text 
-          AND n.daemonPubkey = $daemonPubkey
+          WHERE n.daemonPubkey = $daemonPubkey
           ${channelFilter}
-          RETURN n
-          ORDER BY n.timestamp DESC
+          WITH n, (${wordMatchConditions}) as matchCount
+          WHERE matchCount > 0
+          RETURN n, matchCount
+          ORDER BY matchCount DESC, n.timestamp DESC
           LIMIT 10
         `;
         
-        const params = channelId ? { text, daemonPubkey, channelId } : { text, daemonPubkey };
+        const params = channelId 
+          ? { words, daemonPubkey, channelId } 
+          : { words, daemonPubkey };
+        
         const response = await tx.run(query, params);
         return response.records.map(record => record.get('n').properties as GraphNode);
       });
       return result;
+    } catch (error) {
+      console.error('Error executing Neo4j query:', error);
+      throw error;
     } finally {
       await session.close();
     }

@@ -21,7 +21,7 @@ export class LightRAG {
       apiKey: config.openai.apiKey
     });
     this.embeddingModel = config.openai.model || 'text-embedding-3-small';
-    this.entityExtractionModel = config.openai.entityExtractionModel || 'gpt-4o-mini';
+    this.entityExtractionModel = config.openai.entityExtractionModel || 'gpt-4o';
   }
 
   async init(): Promise<void> {
@@ -60,83 +60,103 @@ export class LightRAG {
   }
 
   private async extractEntities(text: string, daemonPubkey: string, channelId?: string): Promise<ExtractedContent> {
-    // Using the same prompt structure as the Python implementation
+    try {
+          // Using the same prompt structure as the Python implementation
     const prompt = `-Goal-
-Given a text document that is potentially relevant to this activity and a list of entity types, identify all entities of those types from the text and all relationships among the identified entities.
-Use English as output language.
-
--Steps-
-1. Identify all entities. For each identified entity, extract the following information:
-- entity_name: Name of the entity, use same language as input text. If English, capitalized the name.
-- entity_type: One of the following types: [${DEFAULT_ENTITY_TYPES.join(', ')}]
-- entity_description: Comprehensive description of the entity's attributes and activities
-Format each entity as ("entity"<|><entity_name><|><entity_type><|><entity_description>)
-
-2. From the entities identified in step 1, identify all pairs of (source_entity, target_entity) that are *clearly related* to each other.
-For each pair of related entities, extract the following information:
-- source_entity: name of the source entity, as identified in step 1
-- target_entity: name of the target entity, as identified in step 1
-- relationship_description: explanation as to why you think the source entity and the target entity are related to each other
-- relationship_strength: a numeric score indicating strength of the relationship between the source entity and target entity
-- relationship_keywords: one or more high-level key words that summarize the overarching nature of the relationship
-Format each relationship as ("relationship"<|><source_entity><|><target_entity><|><relationship_description><|><relationship_keywords><|><relationship_strength>)
-
-3. Identify high-level key words that summarize the main concepts, themes, or topics of the entire text.
-Format the content-level key words as ("content_keywords"<|><high_level_keywords>)
-
-Text: ${text}`;
-
-    const response = await this.openai.chat.completions.create({
-      model: this.entityExtractionModel,
-      messages: [
-        {
-          role: "system",
-          content: "You are a precise entity and relationship extractor. Follow the format exactly as specified."
-        },
-        {
-          role: "user",
-          content: prompt
-        }
-      ],
-      temperature: 0.1
-    });
-
-    const output = response.choices[0].message.content || '';
-    const lines = output.split('##').filter(line => line.trim());
+    Given a text document that is potentially relevant to this activity and a list of entity types, identify all entities of those types from the text and all relationships among the identified entities.
+    Use English as output language.
     
-    const entities: Entity[] = [];
-    const relationships: Relationship[] = [];
-    let contentKeywords: string[] = [];
+    -Steps-
+    1. Identify all entities. For each identified entity, extract the following information:
+    - entity_name: Name of the entity, use same language as input text. If English, capitalized the name.
+    - entity_type: One of the following types: [${DEFAULT_ENTITY_TYPES.join(', ')}]
+    - entity_description: Comprehensive description of the entity's attributes and activities
+    Format each entity as ("entity"<|><entity_name><|><entity_type><|><entity_description>)
+    
+    2. From the entities identified in step 1, identify all pairs of (source_entity, target_entity) that are *clearly related* to each other.
+    For each pair of related entities, extract the following information:
+    - source_entity: name of the source entity, as identified in step 1
+    - target_entity: name of the target entity, as identified in step 1
+    - relationship_description: explanation as to why you think the source entity and the target entity are related to each other
+    - relationship_strength: a numeric score indicating strength of the relationship between the source entity and target entity
+    - relationship_keywords: one or more high-level key words that summarize the overarching nature of the relationship
+    Format each relationship as ("relationship"<|><source_entity><|><target_entity><|><relationship_description><|><relationship_keywords><|><relationship_strength>)
+    
+    3. Identify high-level key words that summarize the main concepts, themes, or topics of the entire text.
+    Format the content-level key words as ("content_keywords"<|><high_level_keywords>)
+    
+    Input Text: 
+    ${text}`;
+    
+        const response = await this.openai.chat.completions.create({
+          model: this.entityExtractionModel,
+          messages: [
+            {
+              role: "system",
+              content: "You are a precise entity and relationship extractor. Follow the format exactly as specified."
+            },
+            {
+              role: "user",
+              content: prompt
+            }
+          ],
+          temperature: 0.1
+        });
+        console.log("Extract Response: ", response);
 
-    for (const line of lines) {
-      if (line.includes('"entity"<|>')) {
-        const [, name, type, description] = line.split('<|>').map(s => s.replace(/[()"\s]/g, ''));
-        entities.push({ 
-          name, 
-          type, 
-          description,
-          daemonPubkey,
-          channelId 
-        });
-      } else if (line.includes('"relationship"<|>')) {
-        const [, source, target, description, keywords, strength] = line.split('<|>').map(s => s.replace(/[()"\s]/g, ''));
-        relationships.push({
-          sourceEntity: source,
-          targetEntity: target,
-          description,
-          keywords: keywords.split(',').map(k => k.trim()),
-          strength: Number(strength)
-        });
-      } else if (line.includes('"content_keywords"<|>')) {
-        contentKeywords = line.split('<|>')[1].replace(/[()"\s]/g, '').split(',').map(k => k.trim());
-      }
+        const output = response.choices[0].message.content || '';
+        const lines = output.split('\n').filter(line => line.trim());
+        
+        const entities: Entity[] = [];
+        const relationships: Relationship[] = [];
+        let contentKeywords: string[] = [];
+  
+        for (const line of lines) {
+          if (line.includes('"entity"<|>')) {
+            const parts = line.match(/\("entity"<\|>(.*?)<\|>(.*?)<\|>(.*?)<\|>\)/);
+            if (parts) {
+              const [, name, type, description] = parts;
+              entities.push({ 
+                name: name.trim(), 
+                type: type.trim(), 
+                description: description.trim(),
+                daemonPubkey,
+                channelId 
+              });
+            }
+          } else if (line.includes('"relationship"<|>')) {
+            const parts = line.match(/\("relationship"<\|>(.*?)<\|>(.*?)<\|>(.*?)<\|>(.*?)<\|>(.*?)\)/);
+            if (parts) {
+              const [, source, target, description, keywords, strength] = parts;
+              relationships.push({
+                sourceEntity: source.trim(),
+                targetEntity: target.trim(),
+                description: description.trim(),
+                keywords: keywords.split(',').map(k => k.trim()),
+                strength: Number(strength)
+              });
+            }
+          } else if (line.includes('"content_keywords"<|>')) {
+            const parts = line.match(/\("content_keywords"<\|>(.*?)\)/);
+            if (parts) {
+              contentKeywords = parts[1].split(',').map(k => k.trim());
+            }
+          }
+        }
+        return { entities, relationships, contentKeywords };
+    } catch (error) {
+      console.error("RAG - Error extracting entities", error);
+      throw error;
     }
+  }
 
-    return { entities, relationships, contentKeywords };
+  private sanitizeRelationType(type: string): string {
+    // Replace spaces and special characters with underscores
+    // Convert to uppercase as per Neo4j conventions
+    return type.replace(/[^a-zA-Z0-9]/g, '_').toUpperCase();
   }
 
   async insert(text: string, daemonPubkey: string, channelId?: string): Promise<void> {
-    console.log("RAG - Inserting knowledge", text);
     const timestamp = Date.now();
     const id = nanoid();
     try {
@@ -171,6 +191,7 @@ Text: ${text}`;
         id: nanoid(),
         text: entity.name,
         type: entity.type,
+        description: entity.description,
         channelId,
         daemonPubkey,
         timestamp
@@ -179,7 +200,9 @@ Text: ${text}`;
       const entityRelations: GraphRelation[] = extractedContent.relationships.map(rel => ({
         sourceId: entityNodes.find(n => n.text === rel.sourceEntity)?.id || '',
         targetId: entityNodes.find(n => n.text === rel.targetEntity)?.id || '',
-        type: rel.keywords.join(','),
+        type: this.sanitizeRelationType(rel.keywords[0] || 'RELATED_TO'), // Use first keyword as relationship type
+        keywords: rel.keywords, // Store all keywords as a property instead
+        strength: rel.strength,
         channelId,
         daemonPubkey
       })).filter(rel => rel.sourceId && rel.targetId);
@@ -187,7 +210,7 @@ Text: ${text}`;
       // Insert everything
       await Promise.all([
         this.postgres.insert(vectorData),
-        this.neo4j.insertNode(textNode),
+        //this.neo4j.insertNode(textNode),
         ...entityNodes.map(node => this.neo4j.insertNode(node)),
         ...entityRelations.map(rel => this.neo4j.insertRelation(rel))
       ]);
