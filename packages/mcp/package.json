@@ -13,7 +13,7 @@
   "scripts": {
     "build": "bun build --target node --outdir dist src/index.ts",
     "build:types": "tsc --emitDeclarationOnly --declaration --outDir dist",
-    "build:all": "bun run build && bun run build:types",
+    "build:all": "bun install && bun run build && bun run build:types",
     "publish": "bun run build:all && npm publish --access=public"
   },
   "files": [
@@ -22,7 +22,7 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "dependencies": {
-    "@spacemangaming/daemon": "link:@spacemangaming/daemon",
+    "@spacemangaming/daemon": "workspace:@spacemangaming/daemon",
     "compute-cosine-similarity": "^1.1.0",
     "drizzle-orm": "^0.38.4",
     "litemcp": "^0.8.0",

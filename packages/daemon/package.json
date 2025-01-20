@@ -24,7 +24,7 @@
   "scripts": {
     "prepare": "bun run build:all",
     "build": "bun build ./src/index.ts --outdir ./dist",
-    "build:all": "bun run build && bun run build:types",
+    "build:all": "bun install && bun run build && bun run build:types",
     "build:types": "tsc --emitDeclarationOnly --declaration --outDir dist",
     "publish": "bun run build:all && npm publish --access=public"
   },

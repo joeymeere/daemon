@@ -6,12 +6,12 @@ try {
     const memServer = new MemoryServer({name: "memory-server"});
     memServer.init({
         neo4j: {
-            uri: process.env.NEO4J_URI ?? 'bolt://localhost:7687',
+            uri: process.env.NEO4J_URI ?? 'bolt://neo4j:7687',
             username: process.env.NEO4J_USERNAME ?? 'neo4j',
-            password: process.env.NEO4J_PASSWORD ?? 'neo4j'
+            password: process.env.NEO4J_PASSWORD ?? 'lightrag'
         },
         postgres: {
-            host: process.env.POSTGRES_HOST ?? 'localhost',
+            host: process.env.POSTGRES_HOST ?? 'postgres',
             port: parseInt(process.env.POSTGRES_PORT ?? '5432'),
             username: process.env.POSTGRES_USERNAME ?? 'postgres',
             password: process.env.POSTGRES_PASSWORD ?? 'postgres',
@@ -22,6 +22,7 @@ try {
         }
     })
     await memServer.start(memPort);
+    console.log('Memory Server started');
 } catch (e) {
     console.error(e); 
 }  

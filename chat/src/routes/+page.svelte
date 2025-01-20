@@ -79,7 +79,8 @@
     daemons = {};
     for (const agent of agents) {
       const newDaemon = new Daemon();
-      await newDaemon.init(agent.character.identityServerUrl, {
+      try {
+        await newDaemon.init(agent.character.identityServerUrl, {
         character: agent.character,
         privateKey: agent.keypair,
         modelApiKeys: {
@@ -88,6 +89,10 @@
         },
       });
       daemons[agent.character.pubkey] = newDaemon;
+      } catch (error) {
+        console.error('Error initializing daemon for agent', agent, error);
+      }
+
     }
   }
 

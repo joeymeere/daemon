@@ -3,7 +3,7 @@ import idapp from "./idserver";
 
 try {
     Bun.serve(idapp);
-    Bun.serve(memapp);
+    //Bun.serve(memapp);
 } catch (e) {
     console.error(e);
 } 
