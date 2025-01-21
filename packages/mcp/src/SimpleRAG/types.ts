@@ -13,7 +13,6 @@ export interface FalkorConfig {
 export interface AIConfig {
     apiKey?: string;
     baseUrl?: string;
-    embeddingModel?: string;
     entityExtractionModel?: string;
     vectorDimensions?: number;
 }
