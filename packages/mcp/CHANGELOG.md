@@ -1,6 +1,6 @@
 # CHANGELOG
 
-## 0.1.4 - Jan 21 2025 5:04 PM
+## 0.1.5 (skipped 0.1.4) - Jan 21 2025 5:04 PM
     
     - Added RecencyRAG to MemoryServer
     - Added MemoryServer to use LightRAG

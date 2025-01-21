@@ -2,7 +2,7 @@
   "name": "@spacemangaming/mcp-servers",
   "description": "MCP Servers for Daemon Framework",
   "author": "Spacemandev",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "type": "module",
   "devDependencies": {
     "@types/bun": "latest"
@@ -23,7 +23,7 @@
   "types": "./dist/index.d.ts",
   "dependencies": {
     "@ai-sdk/openai": "^1.1.0",
-    "@spacemangaming/daemon": "workspace:@spacemangaming/daemon",
+    "@spacemangaming/daemon": "^0.1.16",
     "ai": "^4.1.0",
     "drizzle-orm": "^0.38.4",
     "falkordb": "^6.2.7",
