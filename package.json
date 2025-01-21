@@ -6,11 +6,11 @@
   "peerDependencies": {
     "typescript": "^5.0.0"
   },
+  "scripts": {},
   "type": "module",
   "workspaces": [
     "packages/daemon",
     "packages/mcp",
     "chat"
-  ],
-  "scripts": {}
+  ]
 }

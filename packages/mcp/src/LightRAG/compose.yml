@@ -40,17 +40,20 @@ services:
       timeout: 5s
       retries: 5
 
-  falkordb:
-    image: falkordb/falkordb:latest
+  neo4j:
+    image: neo4j:latest
     ports:
-      - "6379:6379"
+      - "7474:7474"
+      - "7687:7687"
     volumes:
-      - falkordb_data:/data
+      - neo4j_data:/data
+    environment:
+      - NEO4J_AUTH=neo4j/lightrag
     networks:
       - daemon-network
     healthcheck:
-      test: ["CMD-SHELL", "redis-cli ping"]
-      interval: 10s
+      test: ["CMD", "neo4j", "status"]
+      interval: 5s
       timeout: 5s
       retries: 5
 
@@ -60,4 +63,4 @@ networks:
 
 volumes:
   postgres-data:
-  falkordb_data:
+  neo4j_data:
