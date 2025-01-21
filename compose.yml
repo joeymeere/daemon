@@ -19,7 +19,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      neo4j:
+      falkordb:
         condition: service_healthy
 
   postgres:
@@ -44,6 +44,7 @@ services:
     image: falkordb/falkordb:latest
     ports:
       - "6379:6379"
+      - "3000:3000"
     volumes:
       - falkordb_data:/data
     networks:

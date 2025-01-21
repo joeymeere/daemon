@@ -4,24 +4,7 @@ const memProxy = 3002;
 
 try {
     const memServer = new MemoryServer({name: "memory-server"});
-    memServer.init({
-        neo4j: {
-            uri: process.env.NEO4J_URI ?? 'bolt://neo4j:7687',
-            username: process.env.NEO4J_USERNAME ?? 'neo4j',
-            password: process.env.NEO4J_PASSWORD ?? 'lightrag',
-            database: process.env.NEO4J_DATABASE ?? 'neo4j'
-        },
-        postgres: {
-            host: process.env.POSTGRES_HOST ?? 'postgres',
-            port: parseInt(process.env.POSTGRES_PORT ?? '5432'),
-            username: process.env.POSTGRES_USERNAME ?? 'postgres',
-            password: process.env.POSTGRES_PASSWORD ?? 'postgres',
-            database: process.env.POSTGRES_MEMSERVER_DATABASE ?? 'lightrag'
-        },
-        openai: {
-            apiKey: process.env.OPENAI_API_KEY ?? ''
-        }
-    })
+    await memServer.init({}, {socket: {host: 'falkordb', port: 6379}});
     await memServer.start(memPort);
     console.log('Memory Server started');
 } catch (e) {

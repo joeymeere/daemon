@@ -1,5 +1,5 @@
 import { EXTRACT_ENTITY_AND_RELATIONSHIP_PROMPT, EXTRACT_ENTITY_ONLY_PROMPT, ZENTITY_EXTRACTED_TYPE, ZExtractedEntity, type AIConfig, type FalkorConfig, type GraphNode, type GraphRelation } from "./types";
-import { FalkorDB } from "falkordb";
+import { FalkorDB, Graph } from "falkordb";
 import { generateObject, embedMany, generateText } from "ai";
 import { z } from "zod";
 import { createOpenAI, type OpenAIProvider } from "@ai-sdk/openai";
@@ -16,33 +16,44 @@ export class SimpleRAG {
         this.aiConfig = aiConfig;
         this.openai =  createOpenAI({
             baseURL: aiConfig.baseUrl ?? "https://api.openai.com/v1",
-            apiKey: aiConfig.apiKey
+            apiKey: aiConfig.apiKey ?? process.env.OPENAI_API_KEY
         });
     }
     
     async init(): Promise<void> {
-        this.falkor = await FalkorDB.connect({
-            username: this.dbConfig.username || "default",
-            password: this.dbConfig.password || "default",
-            socket: {
-                host: this.dbConfig.socket.host || "localhost",
-                port: this.dbConfig.socket.port || 6379
-            }
-        });
+        try {
+            this.falkor = await FalkorDB.connect({
+                username: this.dbConfig.username || "default",
+                password: this.dbConfig.password, 
+                socket: {
+                    host: this.dbConfig.socket.host || "localhost",
+                    port: this.dbConfig.socket.port || 6379
+                }
+            });
+    
+            const graph = this.falkor.selectGraph(this.dbConfig.graph || "simple_rag");
+            // Create constraints for unique IDs
+            const indexes = (await graph.query(`CALL db.indexes()`)).data;
 
-        const graph = this.falkor.selectGraph(this.dbConfig.graph || "simple-rag");
-        // Create constraints for unique IDs
-        await graph.query(`CREATE CONSTRAINT ON (n:Entity) ASSERT n.id IS UNIQUE`);
-        
-        // Create vector indexes for entities and relationships
-        await graph.query(`CREATE VECTOR INDEX FOR (n:Entity) ON (n.embedding)`);
-        await graph.query(`CREATE VECTOR INDEX FOR ()-[r:RELATES_TO]->() ON (r.embedding)`);
-        
-        // Create indexes for timestamp and type fields for faster querying
-        await graph.query(`CREATE INDEX FOR (n:Entity) ON (n.timestamp)`);
-        await graph.query(`CREATE INDEX FOR (n:Entity) ON (n.type)`);
-        await graph.query(`CREATE INDEX FOR ()-[r:RELATES_TO]->() ON (r.timestamp)`);
-        await graph.query(`CREATE INDEX FOR ()-[r:RELATES_TO]->() ON (r.type)`);
+            if(!indexes?.filter(index => (index as any).label as string === "Entity")){
+                await graph.query(`CREATE INDEX ON :Entity(id)`);
+                await graph.query(`CREATE INDEX FOR (n:Entity) ON (n.timestamp)`);
+                await graph.query(`CREATE INDEX FOR (n:Entity) ON (n.type)`);    
+            } 
+
+            if(!indexes?.filter(index => (index as any).label as string === "RELATES_TO")){
+                // Create vector indexes for entities and relationships
+                await graph.query(`CREATE VECTOR INDEX FOR (n:Entity) ON (n.embedding) OPTIONS {dimension: $dimensions, similarityFunction: "cosine"}`, {params: {dimensions: this.aiConfig.vectorDimensions ?? 1536}});
+                await graph.query(`CREATE VECTOR INDEX FOR ()-[r:RELATES_TO]->() ON (r.embedding) OPTIONS {dimension: $dimensions, similarityFunction: "cosine"}`, {params: {dimensions: this.aiConfig.vectorDimensions ?? 1536}});
+                
+                // Create indexes for timestamp and type fields for faster querying
+                await graph.query(`CREATE INDEX FOR ()-[r:RELATES_TO]->() ON (r.timestamp)`);
+                await graph.query(`CREATE INDEX FOR ()-[r:RELATES_TO]->() ON (r.type)`);
+            }
+        } catch (error) {
+            throw error;
+        }
+
     }
 
     async close(): Promise<void> {
@@ -64,7 +75,6 @@ export class SimpleRAG {
                 model: this.openai!.languageModel(this.aiConfig.entityExtractionModel ?? "gpt-4o"),
                 schema: ZENTITY_EXTRACTED_TYPE
             })).object;
-    
             const SIMILARITY_THRESHOLD = 0.85; // Composite similarity threshold
 
             // Generate embeddings for all entities at once
@@ -74,7 +84,7 @@ export class SimpleRAG {
                     `${entity.name} | ${entity.type} | ${entity.description}`)
             })).embeddings as number[][];
 
-            const graph = this.falkor.selectGraph(this.dbConfig.graph || "simple-rag");
+            const graph = this.falkor.selectGraph(this.dbConfig.graph || "simple_rag");
 
             // Search for similar entities for all embeddings
             const similarEntitiesPromises = entityEmbeddings.map(entityEmbedding => 
@@ -201,8 +211,8 @@ export class SimpleRAG {
             }));
 
             // Insert entities and relationships in parallel
-            const [entityResults, relationshipResults] = await Promise.all([
-                Promise.all(entitiesWithIds.map(entity => 
+            const results = await Promise.all([
+                await Promise.all(entitiesWithIds.map(entity => 
                     graph.query(`
                         MERGE (e:Entity {id: $id})
                         SET 
@@ -226,11 +236,11 @@ export class SimpleRAG {
                         }
                     })
                 )),
-                Promise.all(relationshipsWithIdAndEmbeddings.map(relationship =>
+                await Promise.all(relationshipsWithIdAndEmbeddings.map(relationship =>
                     graph.query(`
                         MATCH (source:Entity {id: $sourceId})
                         MATCH (target:Entity {id: $targetId})
-                        MERGE (source)-[r:RELATES {id: $id}]->(target)
+                        MERGE (source)-[r:RELATES_TO {id: $id}]->(target)
                         SET 
                             r.type = $type,
                             r.embedding = $embedding,
@@ -251,14 +261,13 @@ export class SimpleRAG {
                     })
                 ))
             ]);
-
         } catch (error) {    
             console.log("SimpleRAG ERROR: ", error);
             throw error;
         }
     }
 
-    async query(text: string, daemonPubkey: string, channelId?: string): Promise<Array<{text: string, score: number}>> {
+    async query(text: string, daemonPubkey: string, channelId?: string): Promise<string[]> {
         try {
             if (!this.falkor) {
                 throw new Error("FalkorDB is not initialized");
@@ -268,109 +277,42 @@ export class SimpleRAG {
             const extractedEntities = (await generateObject({
                 prompt: `${EXTRACT_ENTITY_ONLY_PROMPT}\nInput Text: ${text}`,
                 model: this.openai!.languageModel(this.aiConfig.entityExtractionModel ?? "gpt-4o"),
-                schema: z.array(ZExtractedEntity)
-            })).object;
+                schema: z.object({
+                    entities: z.array(ZExtractedEntity)
+                })
+            })).object.entities;
+            console.log("SimpleRAG Extracted Entities: ", extractedEntities);
 
-            // Generate embeddings for extracted entities
-            const entityEmbeddings = (await embedMany({
-                model: this.openai!.textEmbeddingModel(this.aiConfig.embeddingModel ?? "text-embedding-3-small"),
-                values: extractedEntities.map((entity) => 
-                    `${entity.name} | ${entity.type} | ${entity.description}`)
-            })).embeddings as number[][];
-
-            const graph = this.falkor.selectGraph(this.dbConfig.graph || "simple-rag");
-            const SIMILARITY_THRESHOLD = 0.85;
+            const graph = this.falkor.selectGraph(this.dbConfig.graph || "simple_rag");
 
             // Find similar entities and their relationships
-            const results: Array<{text: string, score: number}> = [];
-            
-            // Process all entities in parallel
-            const entityPromises = extractedEntities.map(async (entity, i) => {
-                const embedding = entityEmbeddings[i];
+            // First find entities with similar names (and types)
+            // IF there's more than 1 similar entity, check embeddings
+            const entitiesWithSimilarNames = (await Promise.all(extractedEntities.map((entity) => {
+                return graph.query(`
+                    MATCH (e:Entity {name: $name, type: $type, daemonPubkey: $daemonPubkey, channelId: $channelId})
+                    RETURN e
+                    `, {
+                        params: {
+                            name: entity.name,
+                            type: entity.type,
+                            daemonPubkey: daemonPubkey,
+                            channelId: channelId == undefined ? null : channelId
+                        }
+                    })
+            }))).map((graphReply) => {
+                return (graphReply.data?.map((node: any) => node.e.properties as GraphNode) || []);
+            }).flat();
 
-                // Find similar entities
-                const similarEntities = await graph.query(`
-                    CALL db.idx.vector.queryNodes('Entity', 'embedding', 5, vecf32($embedding))
-                    YIELD node, score
-                    WHERE score >= 0.7
-                    AND node.daemonPubkey = $daemonPubkey
-                    ${channelId ? 'AND node.channelId = $channelId' : ''}
-                    RETURN node, score
-                    ORDER BY score DESC
-                `, { 
-                    params: { 
-                        embedding,
-                        daemonPubkey,
-                        ...(channelId ? { channelId } : {})
-                    }
-                });
-
-                // Process similar entities and get their relationships in parallel
-                const entityResults = await Promise.all(((similarEntities.data || []) as Array<{ node: any, score: number }>).map(async (match) => {
-                    const node = match.node as unknown as GraphNode;
-                    const similarTypeScore = entity.type === node.type ? 1 : 0;
-                    const similarNameScore = entity.name.toLowerCase() === node.name.toLowerCase() ? 1 : 
-                                        entity.name.toLowerCase().includes(node.name.toLowerCase()) || 
-                                        node.name.toLowerCase().includes(entity.name.toLowerCase()) ? 0.8 : 0;
-                    
-                    const compositeScore = (
-                        match.score * 0.3 + 
-                        similarTypeScore * 0.25 + 
-                        similarNameScore * 0.45 
-                    );
-
-                    if (compositeScore >= SIMILARITY_THRESHOLD) {
-                        // Get entity result and relationships in parallel
-                        const [entityResult, relationships] = await Promise.all([
-                            Promise.resolve({
-                                text: `Found entity: ${node.name} (${node.type}) - ${node.description}`,
-                                score: compositeScore
-                            }),
-                            graph.query(`
-                                MATCH (e:Entity {id: $nodeId})-[r:RELATES]-(related:Entity)
-                                WHERE related.daemonPubkey = $daemonPubkey
-                                ${channelId ? 'AND related.channelId = $channelId' : ''}
-                                RETURN e, r, related
-                            `, {
-                                params: {
-                                    nodeId: node.id,
-                                    daemonPubkey,
-                                    ...(channelId ? { channelId } : {})
-                                }
-                            })
-                        ]);
-
-                        // Process relationships
-                        const relationshipResults = (relationships.data || []).map((rel) => {
-                            const source = rel as unknown as { e: GraphNode, r: GraphRelation, related: GraphNode };
-                            const sourceNode = source.e;
-                            const targetNode = source.related;
-                            const relationship = source.r;
-
-                            return {
-                                text: `${sourceNode.name} ${relationship.type} ${targetNode.name}`,
-                                score: compositeScore * 0.9 // Slightly lower confidence for relationships
-                            };
-                        });
-
-                        return [entityResult, ...relationshipResults];
-                    }
-                    return [];
-                }));
-
-                return entityResults.flat().filter(Boolean);
+            const entityContext: string[] = extractedEntities.map((entity, i) => {
+                if(entitiesWithSimilarNames[i]) {
+                    console.log("SimpleRAG Found Similar Entity: ", entitiesWithSimilarNames[i]);
+                    return `Entity ${entitiesWithSimilarNames[i].name} (${entitiesWithSimilarNames[i].type}): ${entitiesWithSimilarNames[i].description}`;
+                } else {
+                    return entity.name;
+                }
             });
-
-            // Wait for all entity processing to complete and flatten results
-            const allResults = (await Promise.all(entityPromises)).flat();
-
-            // Sort by score descending and return unique results
-            return allResults
-                .sort((a, b) => b.score - a.score)
-                .filter((result, index, self) => 
-                    index === self.findIndex(r => r.text === result.text)
-                );
-
+            return entityContext;
         } catch (error) {    
             console.log("SimpleRAG ERROR: ", error);
             throw error;

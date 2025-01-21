@@ -1,7 +1,7 @@
 # CHANGELOG
 
 ## 0.1.16 - Unreleased
-
+    - Modified system prompt to try and get it to hallucinate less
     - Took out embeddings from message lifecycle
     - Took out functions from IDaemonMCPServer (they should be added as serverTools not exposed functions)
 

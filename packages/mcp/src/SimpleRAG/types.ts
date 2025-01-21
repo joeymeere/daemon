@@ -11,10 +11,11 @@ export interface FalkorConfig {
 }
 
 export interface AIConfig {
-    apiKey: string;
+    apiKey?: string;
     baseUrl?: string;
     embeddingModel?: string;
     entityExtractionModel?: string;
+    vectorDimensions?: number;
 }
 
 export interface GraphNode {
@@ -78,15 +79,15 @@ For each entity, extract the following:
 - description: Comprehensive description of the entity's attributes and activities
 
 Required JSON format: 
-
-[
-    {
-      "name": "entity name",
-      "type": "EntityType",
-      "description": "entity description"
-    }
-]
-
+{
+    entities: [
+        {
+            name: "entity name",
+            type: "EntityType",
+            description: "entity description"
+        }
+    ]
+}
 Process this text:
 `
 

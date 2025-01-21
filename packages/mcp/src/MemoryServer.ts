@@ -1,33 +1,38 @@
 import { ZMessageLifecycle, type IDaemonMCPServer, type IMessageLifecycle, type ITool } from "@spacemangaming/daemon";
-import { LightRAG } from "./LightRAG/LightRAG";
-import type { StorageConfig } from "./LightRAG/types";
+import { SimpleRAG } from "./SimpleRAG/SimpleRAG";
 import { LiteMCP } from "litemcp";
 import { z } from "zod";
+import type { AIConfig, FalkorConfig } from "./SimpleRAG/types";
 
 export class MemoryServer implements IDaemonMCPServer {
     name: string;
     private server: LiteMCP;
-    lrag: LightRAG | undefined;
+    simpleRag: SimpleRAG | undefined;
     
     constructor(opts: { name: string }) {
         this.name = opts.name;
         this.server = new LiteMCP(this.name, "1.0.0");
     }
     
-    async init(config: StorageConfig): Promise<void> {
-        this.lrag = new LightRAG(config);
-        await this.lrag.init();
+    async init(aiConfig: AIConfig, dbConfig: FalkorConfig): Promise<void> {
+        try {
+            this.simpleRag = new SimpleRAG(aiConfig, dbConfig);
+            await this.simpleRag.init();
+        } catch (error) {
+            console.error("Failed to initialize Memory Server: ", error)
+            throw error;
+        }
     }
     
     async stop(): Promise<void> {
-        if(!this.lrag) {      
+        if(!this.simpleRag) {      
             return;
         }
-        await this.lrag?.close();
+        await this.simpleRag?.close();
     }
     
     async start(port?: number): Promise<void> {
-        if(!this.lrag) {
+        if(!this.simpleRag) {
             return;
         }
         // Server Info
@@ -133,11 +138,11 @@ export class MemoryServer implements IDaemonMCPServer {
 
     private async getContextFromQuery(lifecycle: IMessageLifecycle): Promise<IMessageLifecycle> {
         try {
-            if(!this.lrag) {
+            if(!this.simpleRag) {
                 return lifecycle;
             }
-            const contextResults = await this.lrag.query(lifecycle.message, lifecycle.daemonPubkey, lifecycle.channelId ?? undefined);
-            lifecycle.context.push(`\n# Additional Context\n${contextResults.map((result) => result.text).join("\n")}`);
+            const contextResults = (await this.simpleRag.query(lifecycle.message, lifecycle.daemonPubkey, lifecycle.channelId ?? undefined)).slice(0, 20);
+            lifecycle.context.push(`\n# Entities Found In Previous Memory\n${contextResults.join("\n")}`);
             return lifecycle;
         } catch (error) {
             // LOG ERROR
@@ -147,7 +152,7 @@ export class MemoryServer implements IDaemonMCPServer {
 
     private async insertKnowledge(lifecycle: IMessageLifecycle): Promise<IMessageLifecycle> {
         try {
-            if(!this.lrag) {
+            if(!this.simpleRag) {
                 return lifecycle;
             }
             
@@ -158,7 +163,7 @@ ${lifecycle.message}
 # Agent Reply
 ${lifecycle.output}            
             `
-            await this.lrag.insert(msgToInsert, lifecycle.daemonPubkey, lifecycle.channelId ?? undefined);
+            await this.simpleRag.insert(msgToInsert, lifecycle.daemonPubkey, lifecycle.channelId ?? undefined);
             lifecycle.postProcessLog.push(
                 JSON.stringify({
                     server: this.name,
