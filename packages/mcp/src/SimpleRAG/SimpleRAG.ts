@@ -1,6 +1,6 @@
-import { EXTRACT_ENTITY_PROMPT, ZENTITY_EXTRACTED_TYPE, type AIConfig, type FalkorConfig, type GraphNode } from "./types";
+import { EXTRACT_ENTITY_AND_RELATIONSHIP_PROMPT, EXTRACT_ENTITY_ONLY_PROMPT, ZENTITY_EXTRACTED_TYPE, ZExtractedEntity, type AIConfig, type FalkorConfig, type GraphNode, type GraphRelation } from "./types";
 import { FalkorDB } from "falkordb";
-import { generateObject, embedMany } from "ai";
+import { generateObject, embedMany, generateText } from "ai";
 import { z } from "zod";
 import { createOpenAI, type OpenAIProvider } from "@ai-sdk/openai";
 import { nanoid } from "nanoid";
@@ -60,7 +60,7 @@ export class SimpleRAG {
     
             // Extract Entities from Text
             const entitiesAndRelationships = (await generateObject({
-                prompt: `${EXTRACT_ENTITY_PROMPT}\nInput Text: ${text}`,
+                prompt: `${EXTRACT_ENTITY_AND_RELATIONSHIP_PROMPT}\nInput Text: ${text}`,
                 model: this.openai!.languageModel(this.aiConfig.entityExtractionModel ?? "gpt-4o"),
                 schema: ZENTITY_EXTRACTED_TYPE
             })).object;
@@ -82,21 +82,26 @@ export class SimpleRAG {
                     CALL db.idx.vector.queryNodes('Entity', 'embedding', 5, vecf32($embedding))
                     YIELD node, score
                     WHERE score >= 0.7
+                    AND node.daemonPubkey = $daemonPubkey
+                    ${channelId ? 'AND node.channelId = $channelId' : ''}
                     RETURN node, score
-                `, { params: { embedding: entityEmbedding} })
+                `, { params: { 
+                    embedding: entityEmbedding,
+                    daemonPubkey: daemonPubkey,
+                    ...(channelId ? { channelId } : {})
+                }})
             );
             const similarEntitiesResults = await Promise.all(similarEntitiesPromises);
 
             // Process entities and their similar matches
-            let entitiesWithIds = entitiesAndRelationships.entities.map((entity, index) => {
+            const entitiesWithIds = await Promise.all(entitiesAndRelationships.entities.map(async (entity, index) => {
                 const similarEntities = (similarEntitiesResults[index].data || []) as { node: GraphNode; score: number }[];
                 const entityEmbedding = entityEmbeddings[index];
-
 
                 // No Similar Entities, it's a new entity
                 if(similarEntities.length == 0) {   
                     return {
-                        ...entity, //name, type, description
+                        ...entity,
                         id: nanoid(),
                         embedding: entityEmbedding,
                         channelId: channelId == undefined ? null : channelId,
@@ -106,7 +111,6 @@ export class SimpleRAG {
                 }
 
                 // Similar entities were found, find if any match threshold
-                // If none do, then the entity is the entity
                 const bestMatch = similarEntities.reduce((best, currentNode) => {
                     const similarTypeScore = entity.type === currentNode.node.type ? 1 : 0;
                     const similarNameScore = entity.name.toLowerCase() === currentNode.node.name.toLowerCase() ? 1 : 
@@ -114,44 +118,68 @@ export class SimpleRAG {
                                             currentNode.node.name.toLowerCase().includes(entity.name.toLowerCase()) ? 0.8 : 0;
                     
                     const compositeScore = (
-                        currentNode.score * 0.3 + // 30% weight for embedding similarity
-                        similarTypeScore * 0.25 + // 25% weight for type match
-                        similarNameScore * 0.45 // 45% weight for name similarity
+                        currentNode.score * 0.3 + 
+                        similarTypeScore * 0.25 + 
+                        similarNameScore * 0.45 
                     );
 
-                    if(compositeScore > best.score) return currentNode;
-                    else return best;
+                    return compositeScore > best.score ? currentNode : best;
+                }, {
+                    node: {
+                        ...entity,
+                        id: nanoid(),
+                        embedding: entityEmbedding,
+                        channelId: channelId == undefined ? null : channelId,
+                        daemonPubkey,
+                        timestamp: Date.now()
+                    }, 
+                    score: 0
+                });
 
-                }, {node: {
-                    ...entity,
-                    id: nanoid(),
-                    embedding: entityEmbedding,
-                    channelId: channelId == undefined ? null : channelId,
-                    daemonPubkey,
-                    timestamp: Date.now()
-                }, score: 1});
-
-
-                // If we found a good match, use it; otherwise create new entity
+                // If we found a good match, combine descriptions and generate new embedding
                 if (bestMatch && bestMatch.score >= SIMILARITY_THRESHOLD) {
+                    let combinedDescription = `${bestMatch.node.description}. ${entity.description}`;
+
+                    // If combined description is too long, send a call to AI to summarize it.
+                    if(combinedDescription.length > 1024) {
+                        combinedDescription = (await generateText({
+                            prompt: `Summarize the following text into fewer than 512 characters: ${combinedDescription}`,
+                            model: this.openai!.languageModel(this.aiConfig.entityExtractionModel ?? "gpt-4o")
+                        })).text;
+                    }
+                    
+                    // Generate new embedding for combined description
+                    const newEmbedding = (await embedMany({
+                        model: this.openai!.textEmbeddingModel(this.aiConfig.embeddingModel ?? "text-embedding-3-small"),
+                        values: [`${entity.name} | ${entity.type} | ${combinedDescription}`]
+                    })).embeddings[0];
+
                     return {
                         id: bestMatch.node.id,
-                        ...entity,
-                        embedding: bestMatch.node.embedding
+                        name: entity.name,
+                        type: entity.type,
+                        description: combinedDescription,
+                        embedding: newEmbedding,
+                        channelId: channelId == undefined ? null : channelId,
+                        daemonPubkey,
+                        timestamp: Date.now()
                     };
                 } else {
                     return {
                         id: nanoid(),
                         ...entity,
-                        embedding: entityEmbedding
+                        embedding: entityEmbedding,
+                        channelId: channelId == undefined ? null : channelId,
+                        daemonPubkey,
+                        timestamp: Date.now()
                     };
                 }
-            });
-
+            }));
 
             let relationshipsWithIds = entitiesAndRelationships.relationships.map((relationship) => {
-                let sourceId = entitiesWithIds.find((entity) => entity.name === relationship.source)?.id;
-                let targetId = entitiesWithIds.find((entity) => entity.name === relationship.target)?.id;
+                // TODO possibly will fail if the entity names are slightly different in the existing db and new text but match similarity is there
+                let sourceId = entitiesWithIds.find((entity) => entity.name === relationship.source)!.id;
+                let targetId = entitiesWithIds.find((entity) => entity.name === relationship.target)!.id;
                 return {
                     id: nanoid(),
                     sourceId: sourceId,
@@ -160,76 +188,74 @@ export class SimpleRAG {
                 }
             });
 
-            // Get embeddings for relationships
-            let relationshipEmbeddings = await embedMany({
+            // Get embeddings for relationships in parallel
+            const relationshipEmbeddings = await embedMany({
                 model: this.openai!.textEmbeddingModel(this.aiConfig.embeddingModel ?? "text-embedding-3-small"),
                 values: relationshipsWithIds.map((relationship) => 
                     `${relationship.source} | ${relationship.target} | ${relationship.type} | ${relationship.description}`)  
             });
 
-            const relationshipsWithIdAndEmbeddings = relationshipsWithIds.map((relationship, index) => {
-                return {
-                    ...relationship,
-                    embedding: relationshipEmbeddings.values[index]
-                }
-            });
+            const relationshipsWithIdAndEmbeddings = relationshipsWithIds.map((relationship, index) => ({
+                ...relationship,
+                embedding: relationshipEmbeddings.values[index]
+            }));
 
-            // Insert entitiesWithIds and relationshipsWithIds into the graph
-            // First, merge or create entities
-            let entityInsertPromises = entitiesWithIds.map((entity) => {
-                return graph.query(`
-                    MERGE (e:Entity {id: $id})
-                    ON CREATE SET 
-                        e.name = $name,
-                        e.type = $type,
-                        e.description = $description,
-                        e.embedding = $embedding,
-                        e.channelId = $channelId,
-                        e.daemonPubkey = $daemonPubkey,
-                        e.timestamp = $timestamp
-                    `, { params: {
-                        id: entity.id,
-                        name: entity.name,
-                        type: entity.type,
-                        description: entity.description,
-                        embedding: entity.embedding,
-                        channelId: channelId == undefined ? null : channelId,
-                        daemonPubkey: daemonPubkey,
-                        timestamp: Date.now()
-                    }})
-            });
-
-            let relationshipInsertPromises = relationshipsWithIdAndEmbeddings.map((relationship) => {
-                return graph.query(`
-                    MERGE (e:Entity {id: $id})
-                    ON CREATE SET 
-                        e.name = $name,
-                        e.type = $type,
-                        e.description = $description,
-                        e.embedding = $embedding,
-                        e.channelId = $channelId,
-                        e.daemonPubkey = $daemonPubkey,
-                        e.timestamp = $timestamp
-                    `, { params: {
-                        id: relationship.id,
-                        name: relationship.source,
-                        type: relationship.type,
-                        description: relationship.description,
-                        embedding: relationship.embedding,
-                        channelId: channelId == undefined ? null : channelId,
-                        daemonPubkey: daemonPubkey,
-                        timestamp: Date.now()    
-                    }});
-            });
-
-            await Promise.all([entityInsertPromises, relationshipInsertPromises]);
+            // Insert entities and relationships in parallel
+            const [entityResults, relationshipResults] = await Promise.all([
+                Promise.all(entitiesWithIds.map(entity => 
+                    graph.query(`
+                        MERGE (e:Entity {id: $id})
+                        SET 
+                            e.name = $name,
+                            e.type = $type,
+                            e.description = $description,
+                            e.embedding = $embedding,
+                            e.channelId = $channelId,
+                            e.daemonPubkey = $daemonPubkey,
+                            e.timestamp = $timestamp
+                    `, { 
+                        params: {
+                            id: entity.id,
+                            name: entity.name,
+                            type: entity.type,
+                            description: entity.description,
+                            embedding: entity.embedding,
+                            channelId: entity.channelId,
+                            daemonPubkey: entity.daemonPubkey,
+                            timestamp: entity.timestamp
+                        }
+                    })
+                )),
+                Promise.all(relationshipsWithIdAndEmbeddings.map(relationship =>
+                    graph.query(`
+                        MATCH (source:Entity {id: $sourceId})
+                        MATCH (target:Entity {id: $targetId})
+                        MERGE (source)-[r:RELATES {id: $id}]->(target)
+                        SET 
+                            r.type = $type,
+                            r.embedding = $embedding,
+                            r.channelId = $channelId,
+                            r.daemonPubkey = $daemonPubkey,
+                            r.timestamp = $timestamp
+                    `, {
+                        params: {
+                            id: relationship.id,
+                            sourceId: relationship.sourceId,
+                            targetId: relationship.targetId,
+                            type: relationship.type,
+                            embedding: relationship.embedding,
+                            channelId: channelId == undefined ? null : channelId,
+                            daemonPubkey: daemonPubkey,
+                            timestamp: Date.now()
+                        }
+                    })
+                ))
+            ]);
 
         } catch (error) {    
-            // LOG ERROR
             console.log("SimpleRAG ERROR: ", error);
             throw error;
         }
-
     }
 
     async query(text: string, daemonPubkey: string, channelId?: string): Promise<Array<{text: string, score: number}>> {
@@ -238,12 +264,114 @@ export class SimpleRAG {
                 throw new Error("FalkorDB is not initialized");
             }
 
-            // Extract Entities from Text, find similar entities in the graph and relationships related to them
+            // Extract entities from Text
+            const extractedEntities = (await generateObject({
+                prompt: `${EXTRACT_ENTITY_ONLY_PROMPT}\nInput Text: ${text}`,
+                model: this.openai!.languageModel(this.aiConfig.entityExtractionModel ?? "gpt-4o"),
+                schema: z.array(ZExtractedEntity)
+            })).object;
 
+            // Generate embeddings for extracted entities
+            const entityEmbeddings = (await embedMany({
+                model: this.openai!.textEmbeddingModel(this.aiConfig.embeddingModel ?? "text-embedding-3-small"),
+                values: extractedEntities.map((entity) => 
+                    `${entity.name} | ${entity.type} | ${entity.description}`)
+            })).embeddings as number[][];
 
-            return [];
+            const graph = this.falkor.selectGraph(this.dbConfig.graph || "simple-rag");
+            const SIMILARITY_THRESHOLD = 0.85;
+
+            // Find similar entities and their relationships
+            const results: Array<{text: string, score: number}> = [];
+            
+            // Process all entities in parallel
+            const entityPromises = extractedEntities.map(async (entity, i) => {
+                const embedding = entityEmbeddings[i];
+
+                // Find similar entities
+                const similarEntities = await graph.query(`
+                    CALL db.idx.vector.queryNodes('Entity', 'embedding', 5, vecf32($embedding))
+                    YIELD node, score
+                    WHERE score >= 0.7
+                    AND node.daemonPubkey = $daemonPubkey
+                    ${channelId ? 'AND node.channelId = $channelId' : ''}
+                    RETURN node, score
+                    ORDER BY score DESC
+                `, { 
+                    params: { 
+                        embedding,
+                        daemonPubkey,
+                        ...(channelId ? { channelId } : {})
+                    }
+                });
+
+                // Process similar entities and get their relationships in parallel
+                const entityResults = await Promise.all(((similarEntities.data || []) as Array<{ node: any, score: number }>).map(async (match) => {
+                    const node = match.node as unknown as GraphNode;
+                    const similarTypeScore = entity.type === node.type ? 1 : 0;
+                    const similarNameScore = entity.name.toLowerCase() === node.name.toLowerCase() ? 1 : 
+                                        entity.name.toLowerCase().includes(node.name.toLowerCase()) || 
+                                        node.name.toLowerCase().includes(entity.name.toLowerCase()) ? 0.8 : 0;
+                    
+                    const compositeScore = (
+                        match.score * 0.3 + 
+                        similarTypeScore * 0.25 + 
+                        similarNameScore * 0.45 
+                    );
+
+                    if (compositeScore >= SIMILARITY_THRESHOLD) {
+                        // Get entity result and relationships in parallel
+                        const [entityResult, relationships] = await Promise.all([
+                            Promise.resolve({
+                                text: `Found entity: ${node.name} (${node.type}) - ${node.description}`,
+                                score: compositeScore
+                            }),
+                            graph.query(`
+                                MATCH (e:Entity {id: $nodeId})-[r:RELATES]-(related:Entity)
+                                WHERE related.daemonPubkey = $daemonPubkey
+                                ${channelId ? 'AND related.channelId = $channelId' : ''}
+                                RETURN e, r, related
+                            `, {
+                                params: {
+                                    nodeId: node.id,
+                                    daemonPubkey,
+                                    ...(channelId ? { channelId } : {})
+                                }
+                            })
+                        ]);
+
+                        // Process relationships
+                        const relationshipResults = (relationships.data || []).map((rel) => {
+                            const source = rel as unknown as { e: GraphNode, r: GraphRelation, related: GraphNode };
+                            const sourceNode = source.e;
+                            const targetNode = source.related;
+                            const relationship = source.r;
+
+                            return {
+                                text: `${sourceNode.name} ${relationship.type} ${targetNode.name}`,
+                                score: compositeScore * 0.9 // Slightly lower confidence for relationships
+                            };
+                        });
+
+                        return [entityResult, ...relationshipResults];
+                    }
+                    return [];
+                }));
+
+                return entityResults.flat().filter(Boolean);
+            });
+
+            // Wait for all entity processing to complete and flatten results
+            const allResults = (await Promise.all(entityPromises)).flat();
+
+            // Sort by score descending and return unique results
+            return allResults
+                .sort((a, b) => b.score - a.score)
+                .filter((result, index, self) => 
+                    index === self.findIndex(r => r.text === result.text)
+                );
+
         } catch (error) {    
-            // LOG ERROR
             console.log("SimpleRAG ERROR: ", error);
             throw error;
         }

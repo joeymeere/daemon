@@ -45,24 +45,52 @@ export const ZDEFAULT_ENTITY_TYPES = z.enum([
     'Location'
 ])
 
-export const ZENTITY_EXTRACTED_TYPE = z.object({
-    entities: z.array(z.object({
-        name: z.string(),
-        description: z.string(),
-        type: ZDEFAULT_ENTITY_TYPES,
-    })),
-    relationships: z.array(z.object({
-        source: z.string(),
-        sourceId: z.string().optional(),
-        target: z.string(),
-        targetId: z.string().optional(),
-        type: z.string(),
-        description: z.string(),
-        strength: z.number().optional(),
-    })),
+export const ZExtractedEntity = z.object({
+    name: z.string(),
+    description: z.string(),
+    type: ZDEFAULT_ENTITY_TYPES,
 })
 
-export const EXTRACT_ENTITY_PROMPT = `
+export const ZExtractedRelationship = z.object({
+    source: z.string(),
+    target: z.string(),
+    type: z.string(),
+    description: z.string(),
+    strength: z.number().optional(),
+})
+
+export const ZENTITY_EXTRACTED_TYPE = z.object({
+    entities: z.array(ZExtractedEntity),
+    relationships: z.array(ZExtractedRelationship),
+})
+
+export const EXTRACT_ENTITY_ONLY_PROMPT = `
+Extract entities from the input text into JSON. Use these entity types:
+- Concept: Ideas, terms, notions
+- Actor: People, organizations, systems
+- Resource: Documents, items, assets
+- Event: Actions, occurrences
+- Location: Physical/virtual places
+
+For each entity, extract the following:
+- name: The name of the entity. If there are multiple entities of the same type with the same name add a number to the end of each entity to refer to them seperately
+- type: The type of the entity
+- description: Comprehensive description of the entity's attributes and activities
+
+Required JSON format: 
+
+[
+    {
+      "name": "entity name",
+      "type": "EntityType",
+      "description": "entity description"
+    }
+]
+
+Process this text:
+`
+
+export const EXTRACT_ENTITY_AND_RELATIONSHIP_PROMPT = `
 Extract entities and relationships from the input text into JSON. Use these entity types:
 - Concept: Ideas, terms, notions
 - Actor: People, organizations, systems
