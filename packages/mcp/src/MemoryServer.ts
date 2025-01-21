@@ -3,12 +3,14 @@ import { SimpleRAG } from "./SimpleRAG/SimpleRAG";
 import { LiteMCP } from "litemcp";
 import { z } from "zod";
 import type { AIConfig, FalkorConfig } from "./SimpleRAG/types";
+import type { RecencyRAG } from "./SimpleRAG/RecencyRAG";
 
 export class MemoryServer implements IDaemonMCPServer {
     name: string;
     private server: LiteMCP;
     simpleRag: SimpleRAG | undefined;
-    
+    recencyRag: RecencyRAG | undefined;
+
     constructor(opts: { name: string }) {
         this.name = opts.name;
         this.server = new LiteMCP(this.name, "1.0.0");
@@ -138,11 +140,17 @@ export class MemoryServer implements IDaemonMCPServer {
 
     private async getContextFromQuery(lifecycle: IMessageLifecycle): Promise<IMessageLifecycle> {
         try {
-            if(!this.simpleRag) {
+            if(!this.simpleRag || !this.recencyRag) {
                 return lifecycle;
             }
-            const contextResults = (await this.simpleRag.query(lifecycle.message, lifecycle.daemonPubkey, lifecycle.channelId ?? undefined)).slice(0, 20);
-            lifecycle.context.push(`\n# Entities Found In Previous Memory\n${contextResults.join("\n")}`);
+            const [simpleRagResults, recencyRagResults] = await Promise.all([
+                this.simpleRag.query(lifecycle.message, lifecycle.daemonPubkey, lifecycle.channelId ?? undefined),
+                this.recencyRag.query(lifecycle.message, lifecycle.daemonPubkey, lifecycle.channelId ?? undefined),
+            ]);
+            
+            lifecycle.context.push(`\n# Entities Found In Previous Memory\n${simpleRagResults.join("\n")}`);
+            lifecycle.context.push(`\n# Messages Found In Recent Memory\n${recencyRagResults.join("\n")}`);
+
             return lifecycle;
         } catch (error) {
             // LOG ERROR
@@ -152,18 +160,24 @@ export class MemoryServer implements IDaemonMCPServer {
 
     private async insertKnowledge(lifecycle: IMessageLifecycle): Promise<IMessageLifecycle> {
         try {
-            if(!this.simpleRag) {
+            if(!this.simpleRag || !this.recencyRag) {
                 return lifecycle;
             }
             
-            const msgToInsert = `
+            const simpleRagMsgToInsert = `
 # User Message
 ${lifecycle.message}
 
 # Agent Reply
 ${lifecycle.output}            
             `
-            await this.simpleRag.insert(msgToInsert, lifecycle.daemonPubkey, lifecycle.channelId ?? undefined);
+
+            await Promise.all([
+                this.simpleRag.insert(simpleRagMsgToInsert, lifecycle.daemonPubkey, lifecycle.channelId ?? undefined),
+                this.recencyRag.insert(lifecycle.message, "user", lifecycle.daemonPubkey, lifecycle.channelId ?? undefined),
+                this.recencyRag.insert(lifecycle.output, "agent", lifecycle.daemonPubkey, lifecycle.channelId ?? undefined),
+            ]);
+
             lifecycle.postProcessLog.push(
                 JSON.stringify({
                     server: this.name,

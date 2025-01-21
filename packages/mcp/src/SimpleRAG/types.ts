@@ -15,6 +15,15 @@ export interface AIConfig {
     baseUrl?: string;
     entityExtractionModel?: string;
     vectorDimensions?: number;
+    embeddingModel?: string;
+}
+
+export interface PostgresConfig {
+    host: string;
+    port: number;
+    user: string;
+    password: string;
+    database: string;
 }
 
 export interface GraphNode {
