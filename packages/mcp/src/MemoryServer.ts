@@ -1,4 +1,4 @@
-import { ZMessageLifecycle, type IDaemonMCPServer, type IMessageLifecycle, type ITool } from "@spacemangaming/daemon";
+import { ZMessageLifecycle, type IDaemonMCPServer, type IMessageLifecycle, type ITool, checkApproval } from "@spacemangaming/daemon";
 import { SimpleRAG } from "./SimpleRAG/SimpleRAG";
 import { LiteMCP } from "litemcp";
 import { z } from "zod";
@@ -162,6 +162,10 @@ export class MemoryServer implements IDaemonMCPServer {
         try {
             if(!this.simpleRag || !this.recencyRag) {
                 return lifecycle;
+            }
+
+            if(!checkApproval(lifecycle)) {
+                throw new Error("Approval failed");
             }
             
             const simpleRagMsgToInsert = `

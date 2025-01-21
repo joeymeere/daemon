@@ -1,5 +1,9 @@
 # CHANGELOG
 
+
+## 0.1.6 - Unreleased
+    - Added approval system to MemoryServer
+
 ## 0.1.5 (skipped 0.1.4) - Jan 21 2025 5:04 PM
     
     - Added RecencyRAG to MemoryServer
