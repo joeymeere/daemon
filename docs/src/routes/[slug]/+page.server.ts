@@ -13,11 +13,31 @@ export const load = (async ({ params }) => {
         const files = await readdir(contentDir, { recursive: true });
         const contentFiles = files.filter(file => 
             file.endsWith('.md') || file.endsWith('.svx')
-        ).map(file => ({
-            path: file,
-            slug: file.replace(/\.(md|svx)$/, ''),
-            title: file.replace(/\.md$/, '').replace(/\.svx$/, ''),
-        }));
+        ).map(file => {
+            const parts = file.split('/');
+            return {
+                path: file,
+                slug: file.replace(/\.(md|svx)$/, ''),
+                title: parts[parts.length - 1].replace(/\.(md|svx)$/, ''),
+                directory: parts.length > 1 ? parts.slice(0, -1).join('/') : null
+            };
+        });
+
+        // Group files by directory
+        const groupedFiles = contentFiles.reduce((acc, file) => {
+            if (file.directory) {
+                if (!acc[file.directory]) {
+                    acc[file.directory] = [];
+                }
+                acc[file.directory].push(file);
+            } else {
+                if (!acc['root']) {
+                    acc['root'] = [];
+                }
+                acc['root'].push(file);
+            }
+            return acc;
+        }, {} as Record<string, typeof contentFiles>);
 
         // Find the requested content file
         let content: {
@@ -40,7 +60,7 @@ export const load = (async ({ params }) => {
 
         return {
             content,
-            sidebar: contentFiles,
+            sidebar: groupedFiles,
             currentSlug: slug
         };
     } catch (e) {

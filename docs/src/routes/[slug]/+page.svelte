@@ -4,8 +4,21 @@
     import { onMount } from 'svelte';
     import type { PageData } from './$types';
     
+    interface FileEntry {
+        slug: string;
+        title: string;
+        path: string;
+        directory: string | null;
+    }
+
+    interface Sidebar {
+        [key: string]: FileEntry[];
+    }
+    
     let { data } = $props<{ data: PageData }>();
-    let { content, sidebar, currentSlug } = data;
+    let content = $derived(data.content);
+    let sidebar = $derived(data.sidebar);
+    let currentSlug = $derived(data.currentSlug);
     let sidebarOpen = $state(false);
     
     function toggleSidebar() {
@@ -15,6 +28,8 @@
     onMount(() => {
         theme.initialize();
     });
+
+    const typedSidebar = $derived(sidebar as Sidebar);
 </script>
 
 <div class="page-container">
@@ -31,37 +46,58 @@
     <aside class="sidebar" class:open={sidebarOpen}>
         <div class="sidebar-content">
             <nav class="sidebar-nav">
-                {#each sidebar as { slug, path, title }}
-                <a href="/{slug}" 
-                class="nav-link"
-                class:active={currentSlug === slug}>
-                {title}
-            </a>
-            {/each}
-        </nav>
+                {#if typedSidebar.root}
+                    {#each typedSidebar.root as file}
+                        <a href="/{file.slug}" 
+                            data-sveltekit-preload-data
+                            class="nav-link"
+                            class:active={currentSlug === file.slug}>
+                            {file.title}
+                        </a>
+                    {/each}
+                {/if}
+                
+                {#each Object.entries(typedSidebar) as [directory, files]}
+                    {#if directory !== 'root'}
+                        <div class="directory-group">
+                            <h3 class="directory-heading">{directory}</h3>
+                            {#each files as file}
+                                <a href="/{file.slug}" 
+                                    data-sveltekit-preload-data
+                                    class="nav-link indented"
+                                    class:active={currentSlug === file.slug}>
+                                    {file.title}
+                                </a>
+                            {/each}
+                        </div>
+                    {/if}
+                {/each}
+            </nav>
+        </div>
+    </aside>
+
+    <!-- Mobile sidebar toggle -->
+    <button type="button" 
+        class="mobile-toggle"
+        onclick={toggleSidebar}>
+        <span class="sr-only">Toggle sidebar</span>
+        <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+            d="M4 6h16M4 12h16M4 18h16"/>
+        </svg>
+    </button>
+
+    <!-- Main content -->
+    <div class="content">
+        <main class="content-inner">
+            {#if content?.data?.fm}
+                <h1>{content.data.fm.title}</h1>
+                <h3>{content.data.fm.description}</h3>
+                <hr />
+                {@html content.code}
+            {/if}
+        </main>
     </div>
-</aside>
-
-<!-- Mobile sidebar toggle -->
-<button type="button" 
-class="mobile-toggle"
-onclick={toggleSidebar}>
-<span class="sr-only">Toggle sidebar</span>
-<svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-    d="M4 6h16M4 12h16M4 18h16"/>
-</svg>
-</button>
-
-<!-- Main content -->
-<div class="content">
-    <main class="content-inner">
-        <h1>{content.data.fm.title}</h1>
-        <h3>{content.data.fm.description}</h3>
-        <hr />
-        {@html content.code}
-    </main>
-</div>
 </div>
 
 <style>
@@ -125,6 +161,22 @@ onclick={toggleSidebar}>
     .nav-link.active {
         background: var(--sidebar-hover);
         color: var(--accent-color);
+    }
+    
+    .nav-link.indented {
+        padding-left: 1.5rem;
+    }
+    
+    .directory-heading {
+        font-weight: 600;
+        font-size: 1.1em;
+        color: var(--text-primary);
+        margin: 1rem 0 0.5rem;
+        padding-left: 0.5rem;
+    }
+
+    .directory-group {
+        margin-bottom: 1rem;
     }
     
     .theme-toggle {
