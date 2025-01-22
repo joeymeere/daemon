@@ -1,0 +1,34 @@
+---
+title: Getting Started with Daemon
+description: Learn how to install and start using the Daemon framework
+---
+
+# Getting Started with Daemon
+
+Welcome to Daemon! This guide will help you get up and running quickly with our framework for building AI swarms.
+
+## Installation
+
+```bash
+npm install @spaceman/daemon
+```
+
+## Basic Usage
+
+Here's a simple example of creating an AI agent:
+
+```typescript
+import { Agent, ToolsManager } from '@spaceman/daemon';
+
+const agent = new Agent({
+  name: "MyFirstAgent",
+  personality: "Helpful and efficient"
+});
+
+// Add tools to your agent
+await agent.addTool(new WebSearchTool());
+```
+
+## Next Steps
+
+Check out our [Architecture Guide](architecture) to learn more about how Daemon works under the hood.
