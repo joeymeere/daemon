@@ -2,8 +2,8 @@ import { ZMessageLifecycle, type IDaemonMCPServer, type IMessageLifecycle, type 
 import { SimpleRAG } from "./SimpleRAG/SimpleRAG";
 import { LiteMCP } from "litemcp";
 import { z } from "zod";
-import type { AIConfig, FalkorConfig } from "./SimpleRAG/types";
-import type { RecencyRAG } from "./SimpleRAG/RecencyRAG";
+import type { AIConfig, FalkorConfig, PostgresConfig } from "./SimpleRAG/types";
+import { RecencyRAG } from "./SimpleRAG/RecencyRAG";
 
 export class MemoryServer implements IDaemonMCPServer {
     name: string;
@@ -16,10 +16,12 @@ export class MemoryServer implements IDaemonMCPServer {
         this.server = new LiteMCP(this.name, "1.0.0");
     }
     
-    async init(aiConfig: AIConfig, dbConfig: FalkorConfig): Promise<void> {
+    async init(aiConfig: AIConfig, dbConfig: FalkorConfig, postgresConfig: PostgresConfig): Promise<void> {
         try {
             this.simpleRag = new SimpleRAG(aiConfig, dbConfig);
             await this.simpleRag.init();
+            this.recencyRag = new RecencyRAG(aiConfig, postgresConfig);
+            await this.recencyRag.init();
         } catch (error) {
             console.error("Failed to initialize Memory Server: ", error)
             throw error;

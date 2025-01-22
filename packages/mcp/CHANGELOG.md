@@ -1,7 +1,9 @@
 # CHANGELOG
 
 
-## 0.1.6 - Jan 21 2025 7:18 PM 
+## 0.1.6-7 - Jan 21 2025 7:18 PM 
+
+    - bugfix: RecencyRAG works as expected now
     - Added approval system to MemoryServer
 
 ## 0.1.5 (skipped 0.1.4) - Jan 21 2025 5:04 PM

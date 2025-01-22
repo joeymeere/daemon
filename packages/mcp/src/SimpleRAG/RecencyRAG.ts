@@ -6,42 +6,87 @@ import { nanoid } from "nanoid";
 import type { AIConfig, PostgresConfig } from "./types";
 import { embed } from "ai";
 import { createOpenAI, type OpenAIProvider } from "@ai-sdk/openai";
+import postgres from "postgres";
 
 export class RecencyRAG {
     private db: PostgresJsDatabase<typeof RecencyRAGSchema> | undefined;
+    private dbInitPromise: Promise<void>;
     private aiConfig: AIConfig;
     private openai: OpenAIProvider | undefined;
 
     constructor(aiConfig: AIConfig, postgresConfig: PostgresConfig) {
-        this.db = drizzle({
-            connection: postgresConfig,
-            schema: RecencyRAGSchema,
-            casing: "snake_case",
-        });
         this.aiConfig = aiConfig;
-        this.openai =  createOpenAI({
+        this.openai = createOpenAI({
             baseURL: aiConfig.baseUrl ?? "https://api.openai.com/v1",
             apiKey: aiConfig.apiKey ?? process.env.OPENAI_API_KEY
         });
+
+        // Initialize database connection
+        this.dbInitPromise = this.initializeDatabase(postgresConfig);
+    }
+
+    private async initializeDatabase(postgresConfig: PostgresConfig): Promise<void> {
+        try {
+            // First connect to the default postgres database to check if our target database exists
+            const defaultConfig = {
+                ...postgresConfig,
+                database: 'postgres' // Connect to default postgres database
+            };
+            
+            const sql = postgres(defaultConfig);
+            
+            // Check if database exists and create it if it doesn't
+            const result = await sql`
+                SELECT 'CREATE DATABASE ${sql(postgresConfig.database)}'
+                WHERE NOT EXISTS (
+                    SELECT FROM pg_database WHERE datname = ${postgresConfig.database}
+                )
+            `;
+
+            if (result.length > 0) {
+                await sql`CREATE DATABASE ${sql(postgresConfig.database)}`;
+            }
+            await sql.end();
+
+            // Now connect to our target database
+            this.db = drizzle({
+                connection: postgresConfig,
+                schema: RecencyRAGSchema,
+                casing: "snake_case",
+            });
+        } catch (error) {
+            console.error("Error initializing database:", error);
+            throw error;
+        }
     }
 
     async init() {
         try {
-            await this.db?.execute(sql`CREATE EXTENSION IF NOT EXISTS vector`);
+            // Wait for database connection to be ready
+            await this.dbInitPromise;
+            
+            if (!this.db) {
+                throw new Error("Database connection not initialized");
+            }
 
-            await this.db?.execute(sql`CREATE TABLE IF NOT EXISTS messages (
+            await this.db.execute(sql`CREATE EXTENSION IF NOT EXISTS vector`);
+
+            const vectorDim = parseInt(this.aiConfig.vectorDimensions?.toString() ?? "1536");
+            
+            // Use raw string for the vector dimensions
+            await this.db.execute(sql`CREATE TABLE IF NOT EXISTS messages (
                 id TEXT PRIMARY KEY,
-                from TEXT NOT NULL,
+                source TEXT NOT NULL,
                 message TEXT NOT NULL,
-                embeddings VECTOR(${this.aiConfig.vectorDimensions}) NOT NULL,
+                embeddings VECTOR(${sql.raw(vectorDim.toString())}) NOT NULL,
                 timestamp TIMESTAMP DEFAULT NOW(),
                 daemon_pubkey TEXT NOT NULL,
                 channel_id TEXT
             )`);
 
-            await this.db?.execute(sql`CREATE INDEX IF NOT EXISTS ON messages (timestamp)`);
-            await this.db?.execute(sql`CREATE INDEX IF NOT EXISTS ON messages (daemon_pubkey, channel_id)`);
-            await this.db?.execute(sql`CREATE INDEX IF NOT EXISTS ON messages (channel_id)`);
+            await this.db.execute(sql`CREATE INDEX IF NOT EXISTS messages_timestamp_idx ON messages (timestamp)`);
+            await this.db.execute(sql`CREATE INDEX IF NOT EXISTS messages_daemon_channel_idx ON messages (daemon_pubkey, channel_id)`);
+            await this.db.execute(sql`CREATE INDEX IF NOT EXISTS messages_channel_idx ON messages (channel_id)`);
         } catch (error) {
             console.error("Failed to initialize RecencyRAG: ", error)
             throw error;
@@ -63,7 +108,7 @@ export class RecencyRAG {
             const id = nanoid();
             await this.db?.insert(RecencyRAGSchema.messages).values({
                 id: id,
-                from,
+                source: from,
                 message: text,
                 embeddings: embeddings,
                 daemon_pubkey: daemonPubkey,
@@ -123,7 +168,7 @@ export class RecencyRAG {
 
 const messages = {
     id: text("id").primaryKey(),
-    from: text("from"), // User or Agent
+    source: text("source"), // User or Agent
     message: text("message"),
     embeddings: vector("embeddings", {dimensions: 1536}).notNull(),
     timestamp: timestamp("timestamp").defaultNow(),

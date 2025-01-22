@@ -4,7 +4,15 @@ const memProxy = 3002;
 
 try {
     const memServer = new MemoryServer({name: "memory-server"});
-    await memServer.init({}, {socket: {host: 'falkordb', port: 6379}});
+    await memServer.init(
+        {
+            baseUrl: 'https://api.openai.com/v1',
+            apiKey: process.env.OPENAI_API_KEY,
+            vectorDimensions: 1536
+        },
+        {socket: {host: 'falkordb', port: 6379}}, 
+        {host: 'postgres', port: 5432, user: 'postgres', password: 'postgres', database: 'memserver'}
+    );
     await memServer.start(memPort);
     console.log('Memory Server started');
 } catch (e) {
