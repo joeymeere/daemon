@@ -1,90 +1,237 @@
 <!-- +page.svelte -->
 <script lang="ts">
     import { theme } from '$lib/theme.svelte';
-	import type { PageProps } from './$types';
-
-    let { data }: PageProps = $props()
-    let { content, sidebar, currentSlug } = data
+    import { onMount } from 'svelte';
+    import type { PageData } from './$types';
+    
+    let { data } = $props<{ data: PageData }>();
+    let { content, sidebar, currentSlug } = data;
     let sidebarOpen = $state(false);
+    
     function toggleSidebar() {
         sidebarOpen = !sidebarOpen;
     }
-
+    
+    onMount(() => {
+        theme.initialize();
+    });
 </script>
 
-<div class="flex min-h-screen bg-white dark:bg-gray-900">
-    <!-- Sidebar -->
-    <aside class:translate-x-0={sidebarOpen} class:translate-x-[-100%]={!sidebarOpen} 
-           class="fixed left-0 top-0 z-40 h-screen w-64 transition-transform lg:translate-x-0 bg-gray-50 dark:bg-gray-800">
-        <div class="flex h-full flex-col overflow-y-auto border-r border-gray-200 dark:border-gray-700">
-            <nav class="flex-1 space-y-1 px-2 py-4">
-                {#each sidebar as { slug, path, title }}
-                    <a href="/{slug}" 
-                       class="flex items-center rounded-lg p-2 text-base font-normal
-                              {currentSlug === slug ? 
-                                'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white' : 
-                                'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'}">
-                        {title}
-                    </a>
-                {/each}
-            </nav>
-        </div>
-    </aside>
-
-    <!-- Mobile sidebar toggle -->
-    <button type="button" 
-            class="fixed top-4 left-4 z-50 lg:hidden rounded-lg p-2 
-                   text-gray-600 hover:bg-gray-100 focus:outline-none focus:ring-2 
-                   focus:ring-gray-200 dark:text-gray-400 dark:hover:bg-gray-700 
-                   dark:focus:ring-gray-600"
-            onclick={toggleSidebar}>
-        <span class="sr-only">Toggle sidebar</span>
-        <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-                  d="M4 6h16M4 12h16M4 18h16"/>
-        </svg>
+<div class="page-container">
+    <!-- Theme toggle button -->
+    <button class="theme-toggle" onclick={theme.toggle} aria-label="Toggle theme">
+        {#if !theme.dark}
+            <span>🌙</span>
+        {:else}
+            <span>☀️</span>
+        {/if}
     </button>
-
-    <!-- Main content -->
-    <div class="flex-1 lg:ml-64">
-        <main class="p-4 md:p-8">
-            <!-- Theme toggle -->
-            <button type="button" 
-                    class="fixed top-4 right-4 z-50 rounded-lg p-2.5 
-                           text-gray-500 hover:bg-gray-100 focus:outline-none 
-                           focus:ring-4 focus:ring-gray-200 dark:text-gray-400 
-                           dark:hover:bg-gray-700 dark:focus:ring-gray-700"
-                    onclick={theme.toggle}>
-                <span class="sr-only">Toggle dark mode</span>
-                {#if theme.dark}
-                    <!-- Sun icon -->
-                    <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
-                        <path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z"/>
-                    </svg>
-                {:else}
-                    <!-- Moon icon -->
-                    <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
-                        <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/>
-                    </svg>
-                {/if}
-            </button>
-
-            <!-- Content -->
-            <article class="prose dark:prose-invert max-w-none">
-                <h1>{content.data.fm.title}</h1>
-                <h3>{content.data.fm.description}</h3>
-                <hr />
-                {@html content.code}
-            </article>
-        </main>
+    
+    <!-- Sidebar -->
+    <aside class="sidebar" class:open={sidebarOpen}>
+        <div class="sidebar-content">
+            <nav class="sidebar-nav">
+                {#each sidebar as { slug, path, title }}
+                <a href="/{slug}" 
+                class="nav-link"
+                class:active={currentSlug === slug}>
+                {title}
+            </a>
+            {/each}
+        </nav>
     </div>
+</aside>
+
+<!-- Mobile sidebar toggle -->
+<button type="button" 
+class="mobile-toggle"
+onclick={toggleSidebar}>
+<span class="sr-only">Toggle sidebar</span>
+<svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+    d="M4 6h16M4 12h16M4 18h16"/>
+</svg>
+</button>
+
+<!-- Main content -->
+<div class="content">
+    <main class="content-inner">
+        <h1>{content.data.fm.title}</h1>
+        <h3>{content.data.fm.description}</h3>
+        <hr />
+        {@html content.code}
+    </main>
+</div>
 </div>
 
-<style lang="postcss">
-    :global(.prose) {
-        @apply prose-slate max-w-none;
+<style>
+    .page-container {
+        display: flex;
+        min-height: 100vh;
+        background: var(--bg-primary);
+        color: var(--text-primary);
     }
-    :global(.dark .prose) {
-        @apply prose-invert;
+    
+    .sidebar {
+        position: fixed;
+        left: 0;
+        top: 0;
+        z-index: 40;
+        height: 100vh;
+        width: 16rem;
+        background: var(--sidebar-bg);
+        transform: translateX(-100%);
+        transition: transform 0.3s ease-in-out;
+    }
+    
+    .sidebar.open {
+        transform: translateX(0);
+    }
+    
+    @media (min-width: 1024px) {
+        .sidebar {
+            transform: translateX(0);
+        }
+    }
+    
+    .sidebar-content {
+        display: flex;
+        height: 100%;
+        flex-direction: column;
+        overflow-y: auto;
+        border-right: 1px solid var(--border-color);
+    }
+    
+    .sidebar-nav {
+        flex: 1;
+        padding: 1rem 0.5rem;
+    }
+    
+    .nav-link {
+        display: flex;
+        align-items: center;
+        padding: 0.5rem;
+        margin-bottom: 0.25rem;
+        border-radius: 0.5rem;
+        color: var(--sidebar-text);
+        text-decoration: none;
+        transition: background-color 0.2s ease;
+    }
+    
+    .nav-link:hover {
+        background: var(--sidebar-hover);
+    }
+    
+    .nav-link.active {
+        background: var(--sidebar-hover);
+        color: var(--accent-color);
+    }
+    
+    .theme-toggle {
+        position: fixed;
+        top: 1rem;
+        right: 1rem;
+        z-index: 50;
+        padding: 0.625rem;
+        border-radius: 0.5rem;
+        color: var(--text-secondary);
+        background: var(--bg-secondary);
+        transition: background-color 0.2s ease;
+    }
+    
+    .theme-toggle:hover {
+        background: var(--sidebar-hover);
+    }
+    
+    .mobile-toggle {
+        position: fixed;
+        top: 1rem;
+        left: 1rem;
+        z-index: 50;
+        padding: 0.5rem;
+        border-radius: 0.5rem;
+        color: var(--text-secondary);
+        background: var(--bg-secondary);
+        transition: background-color 0.2s ease;
+    }
+    
+    @media (min-width: 1024px) {
+        .mobile-toggle {
+            display: none;
+        }
+    }
+    
+    .mobile-toggle:hover {
+        background: var(--sidebar-hover);
+    }
+    
+    .icon {
+        width: 1.25rem;
+        height: 1.25rem;
+    }
+    
+    .content {
+        flex: 1;
+        margin-left: 0;
+    }
+    
+    @media (min-width: 1024px) {
+        .content {
+            margin-left: 16rem;
+        }
+    }
+    
+    .content-inner {
+        padding: 1rem;
+    }
+    
+    @media (min-width: 768px) {
+        .content-inner {
+            padding: 2rem;
+        }
+    }
+    
+    :global(.content-inner h1) {
+        font-size: 2rem;
+        font-weight: 700;
+        margin-bottom: 1rem;
+        color: var(--text-primary);
+    }
+    
+    :global(.content-inner h2) {
+        font-size: 1.5rem;
+        font-weight: 600;
+        margin: 1.5rem 0 1rem;
+        color: var(--text-primary);
+    }
+    
+    :global(.content-inner p) {
+        margin-bottom: 1rem;
+        line-height: 1.6;
+        color: var(--text-secondary);
+    }
+    
+    :global(.content-inner a) {
+        color: var(--accent-color);
+        text-decoration: none;
+    }
+    
+    :global(.content-inner a:hover) {
+        text-decoration: underline;
+    }
+    
+    :global(.content-inner pre) {
+        background: var(--bg-secondary);
+        padding: 1rem;
+        border-radius: 0.5rem;
+        overflow-x: auto;
+        margin: 1rem 0;
+    }
+    
+    :global(.content-inner code) {
+        font-family: monospace;
+        background: var(--bg-secondary);
+        padding: 0.2rem 0.4rem;
+        border-radius: 0.25rem;
     }
 </style>

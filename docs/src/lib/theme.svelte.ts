@@ -5,7 +5,7 @@ interface Theme {
 let isDark = $state(true);
 
 function toggle() {
-  isDark = isDark ? !isDark : isDark;
+  isDark = !isDark;
   localStorage.setItem('theme', isDark ? 'dark' : 'light');
   document.documentElement.classList.toggle('dark', isDark);
 }
