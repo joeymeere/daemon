@@ -3,12 +3,21 @@
     import { theme } from '$lib/theme.svelte';
     import { onMount } from 'svelte';
     import type { PageData } from './$types';
+    import { page } from '$app/stores';
+    import { afterNavigate } from '$app/navigation';
     
     interface FileEntry {
         slug: string;
         title: string;
         path: string;
         directory: string | null;
+    }
+
+    interface Heading {
+        id: string;
+        text: string;
+        level: number;
+        children: Heading[];
     }
 
     interface Sidebar {
@@ -19,14 +28,85 @@
     let content = $derived(data.content);
     let sidebar = $derived(data.sidebar);
     let currentSlug = $derived(data.currentSlug);
+    let headings = $derived(data.headings);
     let sidebarOpen = $state(false);
+    let activeHeading = $state<string | null>(null);
+    let contentElement = $state<HTMLElement | null>(null);
     
     function toggleSidebar() {
         sidebarOpen = !sidebarOpen;
     }
-    
+
+    function scrollToHeading(id: string) {
+        const element = document.getElementById(id);
+        if (element) {
+            element.scrollIntoView({ behavior: 'smooth' });
+            activeHeading = id;
+            // Update URL without triggering navigation
+            if (typeof window !== 'undefined') {
+                const url = new URL(window.location.href);
+                url.hash = id;
+                history.replaceState(null, '', url.toString());
+            }
+        }
+    }
+
+    // Handle initial hash and post-navigation hash scrolling
     onMount(() => {
         theme.initialize();
+        
+        // Handle initial hash if present
+        if (window.location.hash) {
+            const id = window.location.hash.slice(1);
+            setTimeout(() => {
+                const element = document.getElementById(id);
+                if (element) {
+                    scrollToHeading(id);
+                }
+            }, 100);
+        }
+    });
+
+    // Handle hash changes
+    if (typeof window !== 'undefined') {
+        window.addEventListener('hashchange', () => {
+            const id = window.location.hash.slice(1);
+            if (id) {
+                const element = document.getElementById(id);
+                if (element) {
+                    scrollToHeading(id);
+                }
+            }
+        });
+    }
+
+    // Track active heading on scroll
+    $effect(() => {
+        if (!contentElement) return;
+        
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    activeHeading = entry.target.id;
+                    // Update URL without triggering navigation
+                    const newUrl = new URL(window.location.href);
+                    newUrl.hash = entry.target.id;
+                    window.history.replaceState({}, '', newUrl.toString());
+                }
+            });
+        }, {
+            root: null,
+            rootMargin: '-100px 0px -66%',
+            threshold: 0
+        });
+
+        // Observe all headings
+        const headingElements = contentElement.querySelectorAll('h1[id], h2[id], h3[id], h4[id], h5[id], h6[id]');
+        headingElements.forEach((heading) => {
+            observer.observe(heading);
+        });
+
+        return () => observer.disconnect();
     });
 
     const typedSidebar = $derived(sidebar as Sidebar);
@@ -46,32 +126,77 @@
     <aside class="sidebar" class:open={sidebarOpen}>
         <div class="sidebar-content">
             <nav class="sidebar-nav">
-                {#if typedSidebar.root}
-                    {#each typedSidebar.root as file}
-                        <a href="/{file.slug}" 
-                            data-sveltekit-preload-data
-                            class="nav-link"
-                            class:active={currentSlug === file.slug}>
-                            {file.title}
-                        </a>
+                <!-- File navigation -->
+                <div class="nav-section">
+                    <h3 class="nav-section-title">Pages</h3>
+                    {#if typedSidebar.root}
+                        {#each typedSidebar.root as file}
+                            <a href="/{file.slug}" 
+                                class="nav-link"
+                                class:active={currentSlug === file.slug}>
+                                {file.title}
+                            </a>
+                        {/each}
+                    {/if}
+                    
+                    {#each Object.entries(typedSidebar) as [directory, files]}
+                        {#if directory !== 'root'}
+                            <div class="directory-group">
+                                <h3 class="directory-heading">{directory}</h3>
+                                {#each files as file}
+                                    <a href="/{directory}/{file.title.toLowerCase()}" 
+                                        class="nav-link indented"
+                                        class:active={currentSlug === `${directory}/${file.title.toLowerCase()}`}>
+                                        {file.title}
+                                    </a>
+                                {/each}
+                            </div>
+                        {/if}
                     {/each}
-                {/if}
-                
-                {#each Object.entries(typedSidebar) as [directory, files]}
-                    {#if directory !== 'root'}
-                        <div class="directory-group">
-                            <h3 class="directory-heading">{directory}</h3>
-                            {#each files as file}
-                                <a href="/{file.slug}" 
-                                    data-sveltekit-preload-data
-                                    class="nav-link indented"
-                                    class:active={currentSlug === file.slug}>
-                                    {file.title}
-                                </a>
+                </div>
+
+                <!-- Table of Contents -->
+                {#if headings?.length}
+                    <div class="nav-section">
+                        <h3 class="nav-section-title">On This Page</h3>
+                        <div class="table-of-contents">
+                            {#each headings as heading}
+                                <div class="heading-item" style="margin-left: 0px">
+                                    <button 
+                                       class="heading-link"
+                                       class:active={activeHeading === heading.id}
+                                       onclick={() => scrollToHeading(heading.id)}>
+                                        {heading.text}
+                                    </button>
+                                    {#if heading.children.length}
+                                        {#each heading.children as subheading}
+                                            <div class="heading-item" style="margin-left: 16px">
+                                                <button
+                                                   class="heading-link"
+                                                   class:active={activeHeading === subheading.id}
+                                                   onclick={() => scrollToHeading(subheading.id)}>
+                                                    {subheading.text}
+                                                </button>
+                                                {#if subheading.children.length}
+                                                    {#each subheading.children as subsubheading}
+                                                        <div class="heading-item" style="margin-left: 32px">
+                                                            <button
+                                                               class="heading-link"
+                                                               class:active={activeHeading === subsubheading.id}
+                                                               onclick={() => scrollToHeading(subsubheading.id)}>
+                                                                {subsubheading.text}
+                                                            </button>
+                                                        </div>
+                                                    {/each}
+                                                {/if}
+                                            </div>
+                                        {/each}
+                                    {/if}
+                                </div>
                             {/each}
                         </div>
-                    {/if}
-                {/each}
+                    </div>
+                {/if}
             </nav>
         </div>
     </aside>
@@ -89,12 +214,14 @@
 
     <!-- Main content -->
     <div class="content">
-        <main class="content-inner">
+        <main class="content-inner" bind:this={contentElement}>
             {#if content?.data?.fm}
                 <h1>{content.data.fm.title}</h1>
                 <h3>{content.data.fm.description}</h3>
                 <hr />
-                {@html content.code}
+                {#if content.code}
+                    {@html content.code}
+                {/if}
             {/if}
         </main>
     </div>
@@ -285,5 +412,57 @@
         background: var(--bg-secondary);
         padding: 0.2rem 0.4rem;
         border-radius: 0.25rem;
+    }
+    
+    .nav-section {
+        margin-bottom: 2rem;
+    }
+
+    .nav-section-title {
+        font-size: 0.875rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        color: var(--text-muted);
+        margin: 1.5rem 0 0.5rem;
+        padding: 0 1rem;
+    }
+
+    .table-of-contents {
+        padding: 0 1rem;
+    }
+
+    .heading-item {
+        margin: 0.25rem 0;
+    }
+
+    .heading-link {
+        display: block;
+        padding: 4px 8px;
+        color: var(--text-color);
+        text-decoration: none;
+        border-radius: 4px;
+        transition: background-color 0.2s;
+        font-size: 0.9rem;
+        width: 100%;
+        text-align: left;
+        background: none;
+        border: none;
+        cursor: pointer;
+        margin: 0;
+    }
+
+    .heading-link:hover {
+        background-color: var(--hover-bg);
+        text-decoration: none;
+    }
+
+    .heading-link.active {
+        background-color: var(--active-bg);
+        color: var(--active-text);
+    }
+
+    /* Add smooth scrolling to the content */
+    .content-inner {
+        scroll-behavior: smooth;
     }
 </style>
