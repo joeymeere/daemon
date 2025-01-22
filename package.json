@@ -11,6 +11,8 @@
   "workspaces": [
     "packages/daemon",
     "packages/mcp",
-    "chat"
-  ]
+    "chat",
+    "docs"
+  ],
+  "module": "index.ts"
 }
