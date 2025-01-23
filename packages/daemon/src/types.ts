@@ -7,7 +7,7 @@ export const ZHook = z.object({
   daemonTool: z.enum(["sign"]),
   daemonArgs: z.any(),
   hookTool: z.object({
-    // If hoook server IS NOT indexed, we will NOT add it, just use it temporarily
+    // If hook server IS NOT indexed, we will NOT add it, just use it temporarily
     hookServerUrl: z.string(), // The server we will submit the hook to
     toolName: z.string(), // The tool of the server we will submit the hook to
     toolArgs: z.any(), // The args for the tool

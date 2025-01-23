@@ -1,7 +1,5 @@
 # Core Concepts
 
-**Daemons** are broken up into two main components, the core [Daemon Package](https://www.npmjs.com/package/@spacemangaming/daemon?activeTab=readme) and the [MCP Servers Package](https://www.npmjs.com/package/@spacemangaming/mcp-servers). 
-
 ## Identity File
 A Daemon Identity file is extremely light weight. Most of the "dynamic" nature of a Daemon comes from the servers it connects to and the tools they provide. Each server can track messages/data and provide it's own context and tooling to the daemon. 
 
@@ -52,9 +50,9 @@ A message can be sent with the following arguments:
 ```
 message: The User's message
 opts (optional) 
-    channelId (optional) A unique ID for the "room" the agent is talking in. Useful for knowledge/memory systems to retreive memory only for that room
+    channelId (optional) A unique ID for the "room" the agent is talking in. Useful for knowledge/memory systems to retrieve memory only for that room
     context (optional) True/False (defaults true) Do you want to fetch additional context (like memory) from any context tools of the server(s) connected
-    actions (optional) True/False (deafults true) Do you want to fetch any actions from contected server(s) (like being able to post on Twitter)
+    actions (optional) True/False (defaults true) Do you want to fetch any actions from contected server(s) (like being able to post on Twitter)
     postProcess (optional) True/False (defaults true) Do you want to post process the message with all connected servers (like being able to create new memories from the input message)
     toolArgs (optional) `serverUrl-toolName` -> any{} when calling any of the tools, do you want to pass in any special arguments
 ```
@@ -68,7 +66,7 @@ messageId: a unique ID for the message
 message: the USER INPUT
 createdAt: the timestamp for when the message came in
 approval: a signature from the Daemon that includes (message, createdAt, messageId, and channelId) that proves that the message is being sent to a server from the Daemon
-channelId: an optional "room" id that seperates context for the Daemon's messages
+channelId: an optional "room" id that separates context for the Daemon's messages
 identityPrompt: the Daemon's identity prompt
 context: A list of strings of context gotten after calling the various context tools
 output: The LLM output of feeding it User Input + Context + Tools
