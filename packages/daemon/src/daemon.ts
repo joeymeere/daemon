@@ -11,7 +11,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { SSEClientTransport } from "./SSEClientTransport.js";
 import type { TextContent } from "@modelcontextprotocol/sdk/types.js";
 import type { Keypair } from "@solana/web3.js";
-import { createPrompt, generateEmbeddings, generateText } from "./llm.js";
+import { createPrompt, generateText } from "./llm.js";
 import nacl from "tweetnacl";
 import { nanoid } from "nanoid";
 import { Buffer } from "buffer";
@@ -27,10 +27,8 @@ export class Daemon implements IDaemon {
   keypair: Keypair | undefined;
   modelApiKeys: {
     generationKey: string | undefined;
-    embeddingKey: string | undefined;
   } = {
     generationKey: undefined,
-    embeddingKey: undefined,
   };
 
   mcpClients: {
@@ -68,9 +66,7 @@ export class Daemon implements IDaemon {
   ) {
     this.modelApiKeys = {
       generationKey: opts.modelApiKeys.generationKey,
-      embeddingKey:
-        opts.modelApiKeys.embeddingKey ?? opts.modelApiKeys.generationKey,
-    };
+    }
 
     this.keypair = opts.privateKey;
 
@@ -284,8 +280,8 @@ export class Daemon implements IDaemon {
       throw new Error("Character not found");
     }
 
-    if (!this.modelApiKeys.embeddingKey || !this.modelApiKeys.generationKey) {
-      throw new Error("Model API keys not found");
+    if (!this.modelApiKeys.generationKey) {
+      throw new Error("Model API key not found");
     }
 
     const context = opts?.context ?? true;
@@ -418,7 +414,7 @@ export class Daemon implements IDaemon {
       throw new Error("Keypair not found");
     }
 
-    const messageBytes = Buffer.from(args.payload, "base64");
+    const messageBytes = Uint8Array.from(Buffer.from(args.payload, "base64"));
     const signature = nacl.sign.detached(messageBytes, this.keypair.secretKey);
     return Buffer.from(signature).toString("base64");
   }

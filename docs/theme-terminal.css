@@ -57,7 +57,8 @@ body {
 .markdown-section h3,
 .markdown-section h4,
 .markdown-section h5,
-.markdown-section h6 {
+.markdown-section h6,
+.markdown-section strong {
   color: var(--heading-color);
   font-weight: 600;
   margin-top: 24px;
@@ -140,6 +141,10 @@ body {
 
 .sidebar-toggle {
   background-color: var(--bg-color);
+}
+
+.sidebar {
+  color: (--link-color)
 }
 
 /* Scrollbar Styling */

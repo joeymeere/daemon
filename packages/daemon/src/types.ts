@@ -58,8 +58,6 @@ export const ZCharacter = z.object({
   // Model Settings
   modelSettings: z.object({
     generation: ZModelSettings,
-    // Used to embed the message into a vector space
-    embedding: ZModelSettings, // use generation if not set
   }),
   identityPrompt: z.string(),
   identityServerUrl: z.string(),
@@ -149,7 +147,6 @@ export interface IDaemon {
   };
   modelApiKeys: {
     generationKey: string | undefined;
-    embeddingKey: string | undefined;
   };
 
   // Methods

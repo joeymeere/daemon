@@ -4,6 +4,8 @@
 
 Daemon is a lightweight, scalable, standards first framework for building AI agents. It is designed to be easy to understand, easy to use, and easy to extend. While the client is built in Typescript, the modules are designed to operate over JSON RPC and can be written in any language.
 
+Docs available at [Daemon Docs](https://daemon.spacemangaming.com)
+
 ### Key Features
 
 - Scalable multi agent architecture where agents can _pool_ resources and keep the agents themselves extremely lightweight.
@@ -24,7 +26,7 @@ And since you can swap in modules, we can keep the base agent really simple, wit
 
 ## Quick Start with Chat
 
-You'll need Docker (or better yet Orbstack)
+You'll need Docker (or better yet Orb Stack)
 
 ```bash
 docker compose up -d

@@ -1,5 +1,8 @@
 # CHANGELOG
 
+## 0.1.17 - Unreleased
+    - Took out embedding key from Daemon 
+
 ## 0.1.16 - 2025-01-21 5:04 PM
     - Modified system prompt to try and get it to hallucinate less
     - Took out embeddings from message lifecycle
