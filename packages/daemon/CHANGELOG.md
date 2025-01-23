@@ -1,6 +1,6 @@
 # CHANGE LOG
 
-## 0.1.17 - Unreleased
+## 0.1.17 - 2025-01-23 5:44 PM
     - Took out embedding key from Daemon 
     - Took out additional args from IHook
 

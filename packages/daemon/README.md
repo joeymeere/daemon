@@ -1,5 +1,7 @@
 # @spacemangaming/daemon
 
+[Documentation](https://daemon.spacemangaming.com)
+
 A TypeScript framework for creating AI agents that can interact with Model Context Protocol (MCP) servers. This package provides a robust system for message processing, tool management, and lifecycle events.
 
 ## Installation
