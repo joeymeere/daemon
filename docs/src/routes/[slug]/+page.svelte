@@ -39,7 +39,7 @@
 
     let renderHTML = $state("");
     $effect(() => {
-        renderHTML = (getRenderHTMLFromSlug(page.params.slug, layout) ?? "");
+        renderHTML = (getRenderHTMLFromSlug(currentSlug, layout) ?? "");
     })
 </script>
 
@@ -66,7 +66,7 @@
                 </div>
             {:else}
                 <div style="margin-left: {level * 1.5}rem">
-                    <span>{item.title || (item.slug as string).substr(0, 1).toUpperCase() + (item.slug as string).substr(1)}</span>
+                    <span style="text-transform: capitalize;">{item.title || (item.slug as string)}</span>
                 </div>
                 {#each Object.entries(item).filter(([key, val]) => typeof val === 'object' && key !== 'type') as [slug, child]}
                     {@render NavItem(child, `${path}${slug}/`, level + 1)}
