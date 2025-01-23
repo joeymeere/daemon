@@ -2,14 +2,19 @@
     import { onMount } from 'svelte';
     import { theme } from '$lib/theme.svelte.ts';
 
+    const { data } = $props();
+
     onMount(() => {
         theme.initialize();
+        console.log(data.currentSlug);
+        console.log(data.layout);
     });
+
 </script>
 
 <header>
     <h1>Daemon Documentation</h1>
-    <button class="theme-toggle" on:click={() => theme.toggle()} aria-label="Toggle theme">
+    <button class="theme-toggle" onclick={() => theme.toggle()} aria-label="Toggle theme">
         {#if theme.dark}
             <span>🌙</span>
         {:else}
@@ -119,10 +124,6 @@
         min-height: 100vh;
     }
 
-    .main-content.closed {
-        margin-left: 0;
-    }
-
     .main-content section {
         margin-bottom: 3rem;
     }
@@ -137,25 +138,6 @@
         line-height: 1.6;
         color: var(--text-secondary);
         margin: 1rem 0;
-    }
-
-    .toggle-btn {
-        cursor: pointer;
-        background-color: var(--button-bg);
-        color: var(--text-primary);
-        border: none;
-        padding: 0.5rem;
-        position: absolute;
-        top: 50%;
-        transform: translateY(-50%);
-        left: 1rem;
-        border-radius: 4px;
-        transition: background-color 0.3s ease;
-        font-size: 0.875rem;
-    }
-
-    .toggle-btn:hover {
-        background-color: var(--button-hover);
     }
 
     .theme-toggle {
@@ -184,9 +166,6 @@
         .main-content {
             margin-left: 240px;
             padding: 5rem 1rem 1rem;
-        }
-        .main-content.closed {
-            margin-left: 0;
         }
     }
 </style>
