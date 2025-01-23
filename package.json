@@ -6,7 +6,9 @@
   "peerDependencies": {
     "typescript": "^5.7.3"
   },
-  "scripts": {},
+  "scripts": {
+    "docs": "docsify serve docs"
+  },
   "type": "module",
   "workspaces": [
     "packages/daemon",

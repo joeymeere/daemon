@@ -1,0 +1,161 @@
+:root {
+  --theme-color: #0FF;
+  --mono-hue: 200;
+  --mono-saturation: 0%;
+
+  /* Terminal Theme Colors */
+  --bg-color: #1a1a1a;
+  --text-color: #c7c7c7;
+  --link-color: #0FF;
+  --heading-color: #0FF;
+  --border-color: #404040;
+  --code-bg-color: #2b2b2b;
+  --code-text-color: #fafafa;
+}
+
+/* Base Styles */
+body {
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  line-height: 1.5;
+}
+
+/* Navigation */
+.sidebar {
+  background-color: var(--bg-color);
+  border-right: 1px solid var(--border-color);
+}
+
+.sidebar ul li a {
+  color: var(--text-color);
+}
+
+.sidebar ul li.active > a {
+  color: var(--link-color);
+  border-right: 2px solid var(--link-color);
+}
+
+/* Content */
+.markdown-section {
+  max-width: 900px;
+  padding: 30px;
+}
+
+.markdown-section a {
+  color: var(--link-color);
+  text-decoration: none;
+}
+
+.markdown-section a:hover {
+  text-decoration: underline;
+}
+
+/* Headings */
+.markdown-section h1,
+.markdown-section h2,
+.markdown-section h3,
+.markdown-section h4,
+.markdown-section h5,
+.markdown-section h6 {
+  color: var(--heading-color);
+  font-weight: 600;
+  margin-top: 24px;
+  margin-bottom: 16px;
+}
+
+/* Code */
+.markdown-section code {
+  background-color: var(--code-bg-color);
+  color: var(--code-text-color);
+  padding: 0.2em 0.4em;
+  border-radius: 3px;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+}
+
+.markdown-section pre {
+  background-color: var(--code-bg-color);
+  padding: 1em;
+  border-radius: 3px;
+  overflow: auto;
+}
+
+.markdown-section pre > code {
+  color: var(--code-text-color);
+  background-color: transparent;
+  padding: 0;
+}
+
+/* Search */
+.search {
+  border-bottom: 1px solid var(--border-color);
+  background-color: var(--bg-color);
+}
+
+.search input {
+  background-color: var(--code-bg-color);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+}
+
+/* Tables */
+.markdown-section table {
+  border-collapse: collapse;
+  border-spacing: 0;
+  border: 1px solid var(--border-color);
+}
+
+.markdown-section tr:nth-child(2n) {
+  background-color: var(--code-bg-color);
+}
+
+.markdown-section th,
+.markdown-section td {
+  border: 1px solid var(--border-color);
+  padding: 6px 13px;
+}
+
+/* Blockquotes */
+.markdown-section blockquote {
+  border-left: 4px solid var(--link-color);
+  color: var(--text-color);
+  padding-left: 20px;
+  margin: 0;
+}
+
+/* Custom Terminal-like Elements */
+.markdown-section code::before {
+  content: '$ ';
+  color: var(--link-color);
+  user-select: none;
+}
+
+.anchor span {
+  color: var(--link-color);
+}
+
+.sidebar h1>a {
+  color: var(--link-color);
+}
+
+.sidebar-toggle {
+  background-color: var(--bg-color);
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-color);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--link-color);
+}
