@@ -1,468 +1,192 @@
-<!-- +page.svelte -->
-<script lang="ts">
-    import { theme } from '$lib/theme.svelte';
+<script>
     import { onMount } from 'svelte';
-    import type { PageData } from './$types';
-    import { page } from '$app/stores';
-    import { afterNavigate } from '$app/navigation';
-    
-    interface FileEntry {
-        slug: string;
-        title: string;
-        path: string;
-        directory: string | null;
-    }
+    import { theme } from '$lib/theme.svelte.ts';
 
-    interface Heading {
-        id: string;
-        text: string;
-        level: number;
-        children: Heading[];
-    }
-
-    interface Sidebar {
-        [key: string]: FileEntry[];
-    }
-    
-    let { data } = $props<{ data: PageData }>();
-    let content = $derived(data.content);
-    let sidebar = $derived(data.sidebar);
-    let currentSlug = $derived(data.currentSlug);
-    let headings = $derived(data.headings);
-    let sidebarOpen = $state(false);
-    let activeHeading = $state<string | null>(null);
-    let contentElement = $state<HTMLElement | null>(null);
-    
-    function toggleSidebar() {
-        sidebarOpen = !sidebarOpen;
-    }
-
-    function scrollToHeading(id: string) {
-        const element = document.getElementById(id);
-        if (element) {
-            element.scrollIntoView({ behavior: 'smooth' });
-            activeHeading = id;
-            // Update URL without triggering navigation
-            if (typeof window !== 'undefined') {
-                const url = new URL(window.location.href);
-                url.hash = id;
-                history.replaceState(null, '', url.toString());
-            }
-        }
-    }
-
-    // Handle initial hash and post-navigation hash scrolling
     onMount(() => {
         theme.initialize();
-        
-        // Handle initial hash if present
-        if (window.location.hash) {
-            const id = window.location.hash.slice(1);
-            setTimeout(() => {
-                const element = document.getElementById(id);
-                if (element) {
-                    scrollToHeading(id);
-                }
-            }, 100);
-        }
     });
-
-    // Handle hash changes
-    if (typeof window !== 'undefined') {
-        window.addEventListener('hashchange', () => {
-            const id = window.location.hash.slice(1);
-            if (id) {
-                const element = document.getElementById(id);
-                if (element) {
-                    scrollToHeading(id);
-                }
-            }
-        });
-    }
-
-    // Track active heading on scroll
-    $effect(() => {
-        if (!contentElement) return;
-        
-        const observer = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    activeHeading = entry.target.id;
-                    // Update URL without triggering navigation
-                    const newUrl = new URL(window.location.href);
-                    newUrl.hash = entry.target.id;
-                    window.history.replaceState({}, '', newUrl.toString());
-                }
-            });
-        }, {
-            root: null,
-            rootMargin: '-100px 0px -66%',
-            threshold: 0
-        });
-
-        // Observe all headings
-        const headingElements = contentElement.querySelectorAll('h1[id], h2[id], h3[id], h4[id], h5[id], h6[id]');
-        headingElements.forEach((heading) => {
-            observer.observe(heading);
-        });
-
-        return () => observer.disconnect();
-    });
-
-    const typedSidebar = $derived(sidebar as Sidebar);
 </script>
 
-<div class="page-container">
-    <!-- Theme toggle button -->
-    <button class="theme-toggle" onclick={theme.toggle} aria-label="Toggle theme">
-        {#if !theme.dark}
+<header>
+    <h1>Daemon Documentation</h1>
+    <button class="theme-toggle" on:click={() => theme.toggle()} aria-label="Toggle theme">
+        {#if theme.dark}
             <span>🌙</span>
         {:else}
             <span>☀️</span>
         {/if}
     </button>
-    
-    <!-- Sidebar -->
-    <aside class="sidebar" class:open={sidebarOpen}>
-        <div class="sidebar-content">
-            <nav class="sidebar-nav">
-                <!-- File navigation -->
-                <div class="nav-section">
-                    <h3 class="nav-section-title">Pages</h3>
-                    {#if typedSidebar.root}
-                        {#each typedSidebar.root as file}
-                            <a href="/{file.slug}" 
-                                class="nav-link"
-                                class:active={currentSlug === file.slug}>
-                                {file.title}
-                            </a>
-                        {/each}
-                    {/if}
-                    
-                    {#each Object.entries(typedSidebar) as [directory, files]}
-                        {#if directory !== 'root'}
-                            <div class="directory-group">
-                                <h3 class="directory-heading">{directory}</h3>
-                                {#each files as file}
-                                    <a href="/{directory}/{file.title.toLowerCase()}" 
-                                        class="nav-link indented"
-                                        class:active={currentSlug === `${directory}/${file.title.toLowerCase()}`}>
-                                        {file.title}
-                                    </a>
-                                {/each}
-                            </div>
-                        {/if}
-                    {/each}
-                </div>
+</header>
 
-                <!-- Table of Contents -->
-                {#if headings?.length}
-                    <div class="nav-section">
-                        <h3 class="nav-section-title">On This Page</h3>
-                        <div class="table-of-contents">
-                            {#each headings as heading}
-                                <div class="heading-item" style="margin-left: 0px">
-                                    <button 
-                                       class="heading-link"
-                                       class:active={activeHeading === heading.id}
-                                       onclick={() => scrollToHeading(heading.id)}>
-                                        {heading.text}
-                                    </button>
-                                    {#if heading.children.length}
-                                        {#each heading.children as subheading}
-                                            <div class="heading-item" style="margin-left: 16px">
-                                                <button
-                                                   class="heading-link"
-                                                   class:active={activeHeading === subheading.id}
-                                                   onclick={() => scrollToHeading(subheading.id)}>
-                                                    {subheading.text}
-                                                </button>
-                                                {#if subheading.children.length}
-                                                    {#each subheading.children as subsubheading}
-                                                        <div class="heading-item" style="margin-left: 32px">
-                                                            <button
-                                                               class="heading-link"
-                                                               class:active={activeHeading === subsubheading.id}
-                                                               onclick={() => scrollToHeading(subsubheading.id)}>
-                                                                {subsubheading.text}
-                                                            </button>
-                                                        </div>
-                                                    {/each}
-                                                {/if}
-                                            </div>
-                                        {/each}
-                                    {/if}
-                                </div>
-                            {/each}
-                        </div>
-                    </div>
-                {/if}
-            </nav>
-        </div>
-    </aside>
+<aside class="sidebar">
+    <h2>Table of Contents</h2>
+    <ul>
+        <li><a href="#section1">Section 1</a></li>
+        <li><a href="#section2">Section 2</a></li>
+        <li><a href="#section3">Section 3</a></li>
+    </ul>
+</aside>
 
-    <!-- Mobile sidebar toggle -->
-    <button type="button" 
-        class="mobile-toggle"
-        onclick={toggleSidebar}>
-        <span class="sr-only">Toggle sidebar</span>
-        <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-            d="M4 6h16M4 12h16M4 18h16"/>
-        </svg>
-    </button>
-
-    <!-- Main content -->
-    <div class="content">
-        <main class="content-inner" bind:this={contentElement}>
-            {#if content?.data?.fm}
-                <h1>{content.data.fm.title}</h1>
-                <h3>{content.data.fm.description}</h3>
-                <hr />
-                {#if content.code}
-                    {@html content.code}
-                {/if}
-            {/if}
-        </main>
-    </div>
-</div>
+<main class="main-content">
+    <section id="section1">
+        <h2>Section 1</h2>
+        <p>This is the content for section 1.</p>
+    </section>
+    <section id="section2">
+        <h2>Section 2</h2>
+        <p>This is the content for section 2.</p>
+    </section>
+    <section id="section3">
+        <h2>Section 3</h2>
+        <p>This is the content for section 3.</p>
+    </section>
+</main>
 
 <style>
-    .page-container {
-        display: flex;
-        min-height: 100vh;
-        background: var(--bg-primary);
+    header {
+        background-color: var(--bg-secondary);
         color: var(--text-primary);
-    }
-    
-    .sidebar {
+        padding: 0.75rem 1.5rem;
+        width: 100%;
         position: fixed;
-        left: 0;
         top: 0;
-        z-index: 40;
-        height: 100vh;
-        width: 16rem;
-        background: var(--sidebar-bg);
-        transform: translateX(-100%);
-        transition: transform 0.3s ease-in-out;
-    }
-    
-    .sidebar.open {
-        transform: translateX(0);
-    }
-    
-    @media (min-width: 1024px) {
-        .sidebar {
-            transform: translateX(0);
-        }
-    }
-    
-    .sidebar-content {
-        display: flex;
-        height: 100%;
-        flex-direction: column;
-        overflow-y: auto;
-        border-right: 1px solid var(--border-color);
-    }
-    
-    .sidebar-nav {
-        flex: 1;
-        padding: 1rem 0.5rem;
-    }
-    
-    .nav-link {
+        left: 0;
+        z-index: 100;
+        height: 60px;
         display: flex;
         align-items: center;
-        padding: 0.5rem;
-        margin-bottom: 0.25rem;
-        border-radius: 0.5rem;
-        color: var(--sidebar-text);
-        text-decoration: none;
-        transition: background-color 0.2s ease;
-    }
-    
-    .nav-link:hover {
-        background: var(--sidebar-hover);
-    }
-    
-    .nav-link.active {
-        background: var(--sidebar-hover);
-        color: var(--accent-color);
-    }
-    
-    .nav-link.indented {
-        padding-left: 1.5rem;
-    }
-    
-    .directory-heading {
-        font-weight: 600;
-        font-size: 1.1em;
-        color: var(--text-primary);
-        margin: 1rem 0 0.5rem;
-        padding-left: 0.5rem;
+        box-shadow: var(--card-shadow);
     }
 
-    .directory-group {
-        margin-bottom: 1rem;
-    }
-    
-    .theme-toggle {
-        position: fixed;
-        top: 1rem;
-        right: 1rem;
-        z-index: 50;
-        padding: 0.625rem;
-        border-radius: 0.5rem;
-        color: var(--text-secondary);
-        background: var(--bg-secondary);
-        transition: background-color 0.2s ease;
-    }
-    
-    .theme-toggle:hover {
-        background: var(--sidebar-hover);
-    }
-    
-    .mobile-toggle {
-        position: fixed;
-        top: 1rem;
-        left: 1rem;
-        z-index: 50;
-        padding: 0.5rem;
-        border-radius: 0.5rem;
-        color: var(--text-secondary);
-        background: var(--bg-secondary);
-        transition: background-color 0.2s ease;
-    }
-    
-    @media (min-width: 1024px) {
-        .mobile-toggle {
-            display: none;
-        }
-    }
-    
-    .mobile-toggle:hover {
-        background: var(--sidebar-hover);
-    }
-    
-    .icon {
-        width: 1.25rem;
-        height: 1.25rem;
-    }
-    
-    .content {
-        flex: 1;
-        margin-left: 0;
-    }
-    
-    @media (min-width: 1024px) {
-        .content {
-            margin-left: 16rem;
-        }
-    }
-    
-    .content-inner {
-        padding: 1rem;
-    }
-    
-    @media (min-width: 768px) {
-        .content-inner {
-            padding: 2rem;
-        }
-    }
-    
-    :global(.content-inner h1) {
-        font-size: 2rem;
-        font-weight: 700;
-        margin-bottom: 1rem;
-        color: var(--text-primary);
-    }
-    
-    :global(.content-inner h2) {
-        font-size: 1.5rem;
+    header h1 {
+        font-size: 1.25rem;
+        margin: 0;
         font-weight: 600;
-        margin: 1.5rem 0 1rem;
-        color: var(--text-primary);
-    }
-    
-    :global(.content-inner p) {
-        margin-bottom: 1rem;
-        line-height: 1.6;
-        color: var(--text-secondary);
-    }
-    
-    :global(.content-inner a) {
-        color: var(--accent-color);
-        text-decoration: none;
-    }
-    
-    :global(.content-inner a:hover) {
-        text-decoration: underline;
-    }
-    
-    :global(.content-inner pre) {
-        background: var(--bg-secondary);
-        padding: 1rem;
-        border-radius: 0.5rem;
-        overflow-x: auto;
-        margin: 1rem 0;
-    }
-    
-    :global(.content-inner code) {
-        font-family: monospace;
-        background: var(--bg-secondary);
-        padding: 0.2rem 0.4rem;
-        border-radius: 0.25rem;
-    }
-    
-    .nav-section {
-        margin-bottom: 2rem;
     }
 
-    .nav-section-title {
+    .sidebar {
+        background-color: var(--bg-secondary);
+        height: 100vh;
+        overflow-y: auto;
+        transition: all 0.3s ease;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 280px;
+        padding: 5rem 0 2rem 0;
+        box-shadow: var(--card-shadow);
+        color: var(--text-primary);
+    }
+
+    .sidebar h2 {
         font-size: 0.875rem;
-        font-weight: 600;
         text-transform: uppercase;
-        color: var(--text-muted);
-        margin: 1.5rem 0 0.5rem;
-        padding: 0 1rem;
+        letter-spacing: 0.05em;
+        color: var(--text-secondary);
+        padding: 0 1.5rem;
+        margin: 2rem 0 0.5rem;
     }
 
-    .table-of-contents {
-        padding: 0 1rem;
-    }
-
-    .heading-item {
-        margin: 0.25rem 0;
-    }
-
-    .heading-link {
-        display: block;
-        padding: 4px 8px;
-        color: var(--text-color);
-        text-decoration: none;
-        border-radius: 4px;
-        transition: background-color 0.2s;
-        font-size: 0.9rem;
-        width: 100%;
-        text-align: left;
-        background: none;
-        border: none;
-        cursor: pointer;
+    .sidebar ul {
+        list-style: none;
+        padding: 0;
         margin: 0;
     }
 
-    .heading-link:hover {
-        background-color: var(--hover-bg);
+    .sidebar li {
+        margin: 0;
+        padding: 0;
+    }
+
+    .sidebar a {
+        display: block;
+        padding: 0.5rem 1.5rem;
+        color: var(--text-primary);
         text-decoration: none;
+        transition: background-color 0.2s ease;
     }
 
-    .heading-link.active {
-        background-color: var(--active-bg);
-        color: var(--active-text);
+    .sidebar a:hover {
+        background-color: var(--bg-primary);
     }
 
-    /* Add smooth scrolling to the content */
-    .content-inner {
-        scroll-behavior: smooth;
+    .main-content {
+        margin-left: 280px;
+        padding: 5rem 2rem 2rem;
+        max-width: 65rem;
+        background-color: var(--bg-primary);
+        color: var(--text-primary);
+        min-height: 100vh;
+    }
+
+    .main-content.closed {
+        margin-left: 0;
+    }
+
+    .main-content section {
+        margin-bottom: 3rem;
+    }
+
+    .main-content h2 {
+        font-size: 1.875rem;
+        margin: 2rem 0 1rem;
+        font-weight: 600;
+    }
+
+    .main-content p {
+        line-height: 1.6;
+        color: var(--text-secondary);
+        margin: 1rem 0;
+    }
+
+    .toggle-btn {
+        cursor: pointer;
+        background-color: var(--button-bg);
+        color: var(--text-primary);
+        border: none;
+        padding: 0.5rem;
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        left: 1rem;
+        border-radius: 4px;
+        transition: background-color 0.3s ease;
+        font-size: 0.875rem;
+    }
+
+    .toggle-btn:hover {
+        background-color: var(--button-hover);
+    }
+
+    .theme-toggle {
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        right: 1rem;
+        padding: 0.5rem;
+        border: none;
+        background: var(--card-bg);
+        border-radius: 50%;
+        box-shadow: var(--card-shadow);
+        cursor: pointer;
+        transition: transform 0.2s ease;
+        z-index: 1000;
+    }
+
+    .theme-toggle:hover {
+        transform: translateY(-50%) scale(1.1);
+    }
+
+    @media (max-width: 768px) {
+        .sidebar {
+            width: 240px;
+        }
+        .main-content {
+            margin-left: 240px;
+            padding: 5rem 1rem 1rem;
+        }
+        .main-content.closed {
+            margin-left: 0;
+        }
     }
 </style>
