@@ -57,9 +57,9 @@ async function buildLayoutTree(slug: string,dir: string): Promise<{layout: Neste
                     type: 'file',
                     path: relative(currentDir, fullPath),
                     slug: fileSlug,
-                    order: data.fm.order ?? 0,
-                    title: data.fm.title,
-                    description: data.fm.description,
+                    order: data.fm?.order ?? 0,
+                    title: data.fm?.title ?? fileSlug,
+                    description: data.fm?.description,
                     html: code
                 };
                 if(fileSlug === slug) {
@@ -79,7 +79,6 @@ export const load = (async ({ params }) => {
     const { slug } = params;
     const contentDir = join(process.cwd(), 'src/content');
     const {layout, html} = await buildLayoutTree(slug, contentDir);
-    console.log(html);
     return {
         layout,
         currentSlug: slug,

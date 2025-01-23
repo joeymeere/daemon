@@ -2,14 +2,45 @@
     import { onMount } from 'svelte';
     import { theme } from '$lib/theme.svelte.ts';
     import type { Content, NestedFolderLayout } from './+page.server';
+    import { page } from '$app/state';
 
     const { data } = $props();
     const { layout, currentSlug, html} = data;
+
     onMount(() => {
-        console.log(html)
         theme.initialize();
     });
 
+    const getRenderHTMLFromSlug = (slug: string, layout: Content | NestedFolderLayout): string | undefined => {
+        // First search all the files in this layout to match against slug
+        let files = [];
+        let folders = [];
+        for(let node of Object.values(layout)) {
+            if(node.type && node.type === "file") {
+                files.push(node);
+            } else {
+                folders.push(node);
+            }
+        }
+
+        for(let file of files) {   
+            if(file.slug === slug) {
+                return file.html;
+            }
+        }
+        // Then search all the folders in this layout (for loop) in recursive manner to match against slug
+        // If you go through ALL FOLDERS and they are undefined, return undefined
+        for(let folder of folders) {
+            const subHtml = getRenderHTMLFromSlug(slug, folder);
+            if(subHtml) return subHtml;
+        }
+        return undefined;
+    }
+
+    let renderHTML = $state("");
+    $effect(() => {
+        renderHTML = (getRenderHTMLFromSlug(page.params.slug, layout) ?? "");
+    })
 </script>
 
 <header>
@@ -50,7 +81,7 @@
 </aside>
 
 <main class="main-content">
-    {@html html}
+    {@html renderHTML}
 </main>
 
 <style>
