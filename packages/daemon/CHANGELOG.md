@@ -1,7 +1,8 @@
-# CHANGELOG
+# CHANGE LOG
 
 ## 0.1.17 - Unreleased
     - Took out embedding key from Daemon 
+    - Took out additional args from IHook
 
 ## 0.1.16 - 2025-01-21 5:04 PM
     - Modified system prompt to try and get it to hallucinate less
@@ -21,7 +22,7 @@
 
 ### 0.1.13 - 2025-01-14 8:22 PM
 
-    - Build moved to rolldown with polyfills
+    - Build moved to roll down with poly fills
     - Added sign method
 
 ### 0.1.12 - Initial Release

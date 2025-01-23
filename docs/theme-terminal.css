@@ -11,6 +11,7 @@
   --border-color: #404040;
   --code-bg-color: #2b2b2b;
   --code-text-color: #fafafa;
+  --dark-blue: rgb(129, 169, 181);
 }
 
 /* Base Styles */
@@ -19,6 +20,14 @@ body {
   background-color: var(--bg-color);
   color: var(--text-color);
   line-height: 1.5;
+}
+
+.callout {
+  background-color: var(--code-text-color);
+  padding: 2.5%;
+  font-weight: bolder;
+  color: var(--dark-blue)
+
 }
 
 /* Navigation */

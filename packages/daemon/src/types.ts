@@ -12,7 +12,6 @@ export const ZHook = z.object({
     toolName: z.string(), // The tool of the server we will submit the hook to
     toolArgs: z.any(), // The args for the tool
   }),
-  additionalArgs: z.any(), // Useful for metadata to pass along
   hookOutput: z.any().optional(), // The output of the hook
 });
 
