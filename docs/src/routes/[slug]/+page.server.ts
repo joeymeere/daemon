@@ -3,7 +3,7 @@ import { join, relative } from 'path';
 //@ts-ignore
 import {compile} from 'mdsvex';
 
-interface Content {
+export interface Content {
     type: 'file' | 'folder';
     path: string;
     slug: string;
@@ -13,11 +13,12 @@ interface Content {
     html: string;
 }
 
-interface NestedFolderLayout {
+export interface NestedFolderLayout {
     [slug: string]: Content | NestedFolderLayout; // slug => file data | folder that has files
 }
 
-async function buildLayoutTree(dir: string): Promise<NestedFolderLayout> {
+async function buildLayoutTree(slug: string,dir: string): Promise<{layout: NestedFolderLayout, html: string}> {
+    let html = '';
     const getSlugFromFile = (file: string) => {
         const relativePath = relative(dir, file);
         const slug = relativePath
@@ -51,28 +52,37 @@ async function buildLayoutTree(dir: string): Promise<NestedFolderLayout> {
             } else {
                 const contentFile = readFileSync(fullPath, 'utf-8');
                 const {code, data} = await compile(contentFile);
-                layout[getSlugFromFile(fullPath)] = {
+                const fileSlug = getSlugFromFile(fullPath);
+                layout[fileSlug] = {
                     type: 'file',
                     path: relative(currentDir, fullPath),
-                    slug: getSlugFromFile(fullPath),
-                    order: data.order ?? 0,
-                    title: data.title,
-                    description: data.description,
+                    slug: fileSlug,
+                    order: data.fm.order ?? 0,
+                    title: data.fm.title,
+                    description: data.fm.description,
                     html: code
                 };
+                if(fileSlug === slug) {
+                    html = code;
+                }
             }
         }
         return layout;
     }
-    return await traverse(dir);
+    return {
+        layout: await traverse(dir),
+        html
+    };
 }
 
 export const load = (async ({ params }) => {
     const { slug } = params;
     const contentDir = join(process.cwd(), 'src/content');
-    const layout = await buildLayoutTree(contentDir);
+    const {layout, html} = await buildLayoutTree(slug, contentDir);
+    console.log(html);
     return {
         layout,
-        currentSlug: slug
+        currentSlug: slug,
+        html
     };
 });

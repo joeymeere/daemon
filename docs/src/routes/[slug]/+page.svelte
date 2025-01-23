@@ -1,13 +1,13 @@
-<script>
+<script lang="ts">
     import { onMount } from 'svelte';
     import { theme } from '$lib/theme.svelte.ts';
+    import type { Content, NestedFolderLayout } from './+page.server';
 
     const { data } = $props();
-
+    const { layout, currentSlug, html} = data;
     onMount(() => {
+        console.log(html)
         theme.initialize();
-        console.log(data.currentSlug);
-        console.log(data.layout);
     });
 
 </script>
@@ -24,27 +24,33 @@
 </header>
 
 <aside class="sidebar">
-    <h2>Table of Contents</h2>
-    <ul>
-        <li><a href="#section1">Section 1</a></li>
-        <li><a href="#section2">Section 2</a></li>
-        <li><a href="#section3">Section 3</a></li>
-    </ul>
+    <h2>Documentation</h2>
+    <nav>
+        {#snippet NavItem(item: Content | NestedFolderLayout, path = '', level = 0)}
+            {#if item.type === 'file'}
+                <div style="margin-left: {level * 1.5}rem">
+                    <a href="/{item.slug}" class:active={currentSlug === item.slug}>
+                        {item.title || item.slug}
+                    </a>
+                </div>
+            {:else}
+                <div style="margin-left: {level * 1.5}rem">
+                    <span>{item.title || (item.slug as string).substr(0, 1).toUpperCase() + (item.slug as string).substr(1)}</span>
+                </div>
+                {#each Object.entries(item).filter(([key, val]) => typeof val === 'object' && key !== 'type') as [slug, child]}
+                    {@render NavItem(child, `${path}${slug}/`, level + 1)}
+                {/each}
+            {/if}
+        {/snippet}
+
+        {#each Object.entries(layout) as [slug, item]}
+            {@render NavItem(item, '', 0)}
+        {/each}
+    </nav>
 </aside>
 
 <main class="main-content">
-    <section id="section1">
-        <h2>Section 1</h2>
-        <p>This is the content for section 1.</p>
-    </section>
-    <section id="section2">
-        <h2>Section 2</h2>
-        <p>This is the content for section 2.</p>
-    </section>
-    <section id="section3">
-        <h2>Section 3</h2>
-        <p>This is the content for section 3.</p>
-    </section>
+    {@html html}
 </main>
 
 <style>
@@ -70,6 +76,10 @@
     }
 
     .sidebar {
+        padding: 1rem;
+        border-right: 1px solid var(--border-color);
+        min-width: 250px;
+        max-width: 350px;
         background-color: var(--bg-secondary);
         height: 100vh;
         overflow-y: auto;
@@ -77,42 +87,34 @@
         position: fixed;
         top: 0;
         left: 0;
-        width: 280px;
-        padding: 5rem 0 2rem 0;
-        box-shadow: var(--card-shadow);
         color: var(--text-primary);
     }
 
-    .sidebar h2 {
-        font-size: 0.875rem;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        color: var(--text-secondary);
-        padding: 0 1.5rem;
-        margin: 2rem 0 0.5rem;
-    }
-
-    .sidebar ul {
-        list-style: none;
-        padding: 0;
-        margin: 0;
-    }
-
-    .sidebar li {
-        margin: 0;
-        padding: 0;
+    .sidebar nav {
+        margin-top: 1rem;
     }
 
     .sidebar a {
-        display: block;
-        padding: 0.5rem 1.5rem;
-        color: var(--text-primary);
+        color: var(--text-color);
         text-decoration: none;
-        transition: background-color 0.2s ease;
+        display: block;
+        padding: 0.5rem 0;
     }
 
     .sidebar a:hover {
-        background-color: var(--bg-primary);
+        color: var(--accent-color);
+    }
+
+    .sidebar a.active {
+        color: var(--accent-color);
+        font-weight: bold;
+    }
+
+    .sidebar span {
+        display: block;
+        padding: 0.5rem 0;
+        color: var(--text-muted);
+        font-weight: bold;
     }
 
     .main-content {

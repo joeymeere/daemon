@@ -4,15 +4,16 @@ description: Learn how to install and start using the Daemon framework
 order: 1
 ---
 
-<img src="/daemon.png" alt="Daemon Logo" />
+<img src="/daemon.png" alt="Daemon Logo" style="height: 25%"/>
 
 Daemon is a lightweight, scalable, standards first framework for building AI agents. It is designed to be easy to understand, easy to use, and easy to extend. While the client is built in Typescript, the modules are designed to operate over JSON RPC and can be written in any language.
 
-Key Features 
-Scalable multi agent architecture where agents can pool resources and keep the agents themselves extremely lightweight.
-Standards based modules using Model Context Protocol that allow agents access to wide variety of tools and resources
-Basic memory and personality management out of the box, with options to extend it further
-Motivation 
+## Key Features 
+- Scalable multi agent architecture where agents can pool resources and keep the agents themselves extremely lightweight.
+- Standards based modules using Model Context Protocol that allow agents access to wide variety of tools and resources
+- Basic memory and personality management out of the box, with options to extend it further
+
+## Motivation 
 Existing AI frameworks focus on building monolithic AI agents with packaged tools. This approach works for running a couple agents, but doesn't scale to hundreds or thousands of agents. When building Agents-as-a-Service model, a more scalable architecture is for lightweight agent clients that share access to tools and resources.
 
 Lets take a simple example of wanting to run three agents that all connect to twitter. In a monolithic framework, each of those agents would run it's Twitter plugin (lets say a headless browser), quickly eating up all your resources and duplicating processing of often the same data. In a modular framework like Daemon, you can build one Twitter tool that ingests data and provides actions and support any number of lightweight agents that connect to it and get scoped access to use it's resources.
