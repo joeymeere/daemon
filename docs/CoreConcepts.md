@@ -24,22 +24,26 @@ Many Daemons can connect to the same Daemon Tool Server, allowing scalable archi
 Servers can provide four different types of tools:
 
 1. Server Tools
+
     Server tools are *not* called during the message lifecycle, and instead are called on-demand. Examples of these types of tools are registration tools (such as those called on the Identity Server during instancing) or a transaction submission tool that has the Daemon submit a signed payload to a server to have it processed.
 
-2. Context Tools
+2. Context Tools   
+    
     Context tools are the first set of tools to be called during the message lifecycle. 
     They are used to add additional context (like memories or price data for token, or whatever else)
     Context servers can also fill out a list of tools the LLM might make use of in the Actions step to give it context around that
 
 3. Action Tools
+    
     Actions tools are called to take the generated text and then take actions on it (like creating a transaction for buying a token).
 
 4. Post Process Tools
+    
     Post Process Tools are the last set of tools to be called and they do things like create new memories based on generated text + actions taken.
 
 <div class="callout">
     One thing to note is that each step (Context, Action, Post Process) calls all of the tools of that type from all of the servers registered to that Daemon.
-    This means that if you want to *not* run a particular tool for a given input, it's up to the *tool* to figure out if it should be run or not. Check out [common patterns](./FAQ.md) 
+    This means that if you want to *not* run a particular tool for a given input, it's up to the *tool* to figure out if it should be run or not. Check out FAQ for common patterns. 
     on how to accomplish this with individual tool checks or through a Server Router pattern.
 </div>
 
@@ -80,12 +84,18 @@ postProcessLog: a list of post processes that were done, used for logging
 The Daemon will:
 
 1. Get a message on the message() function
+
 2. Generate and sign an approval payload which includes (message, createdAt, messageId, and channelId) and send it along. This is to prevent people from spoofing payloads to servers.
+
 3. If context is true, then it'll call all the context tools in parallel to fill it's context and tools arrays with memories and tools registries it can use
+
 4. Call generateText() using the provided LLM, feed it the User Input + Context + Tools and store the output in output
+
 5. If actions is true, call the various action tools, which will either do some action on the Daemon's behalf or send back a hook that the Daemon should call after using an internal tool.
     - Currently the only internal tool available is 'sign' which signs a payload and returns it
+
 6. If post process is true, the Daemon will then call post process tools to create new memories and logs as needed.
+
 7. Finally the Daemon will return the full lifecycle object to the caller
 
 ## Hooks & Internal Tools

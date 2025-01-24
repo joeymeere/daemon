@@ -2,6 +2,12 @@
 
 ## Running Local Chat
 
+Start with git clong the repo which has everything you need to start up a local LLM chat and see how everything connects
+
+```
+git clone git@github.com:Spaceman-Gaming/daemon.git
+```
+
 ### Docker Setup
 
 0. Fill out your OPENAI API key in .env file
