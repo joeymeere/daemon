@@ -45,6 +45,10 @@ body {
   border-right: 2px solid var(--link-color);
 }
 
+.sidebar-toggle {
+  bottom: auto;
+}
+
 /* Content */
 .markdown-section {
   max-width: 900px;
