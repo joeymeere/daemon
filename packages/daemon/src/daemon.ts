@@ -72,8 +72,6 @@ export class Daemon implements IDaemon {
   ) {
     this.modelApiKeys = {
       generationKey: opts.modelApiKeys.generationKey,
-      embeddingKey:
-        opts.modelApiKeys.embeddingKey ?? opts.modelApiKeys.generationKey,
     };
 
     this.keypair = opts.privateKey;
@@ -515,7 +513,7 @@ export class Daemon implements IDaemon {
       throw new Error("Character not found");
     }
 
-    if (!this.modelApiKeys.embeddingKey || !this.modelApiKeys.generationKey) {
+    if (!this.modelApiKeys.generationKey) {
       throw new Error("Model API keys not found");
     }
 
