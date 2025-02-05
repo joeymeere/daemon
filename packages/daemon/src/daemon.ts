@@ -14,7 +14,6 @@ import type { Keypair } from "@solana/web3.js";
 import {
   createMultiplePrompts,
   createPrompt,
-  generateEmbeddings,
   generateText,
   generateTextWithMessages,
 } from "./llm.js";
