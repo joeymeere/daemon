@@ -1,5 +1,9 @@
 import OpenAI from "openai";
-import type { IMessageLifecycle, ModelSettings } from "./types";
+import type {
+  IMessageLifecycle,
+  ModelSettings,
+  MultiMessageSchema,
+} from "./types";
 import Anthropic from "@anthropic-ai/sdk";
 import type { ChatCompletionMessageParam } from "openai/resources";
 import type { MessageParam } from "@anthropic-ai/sdk/resources";
@@ -142,7 +146,7 @@ export async function generateText(
 export async function generateTextWithMessages(
   generationModelSettings: ModelSettings,
   generationModelKey: string,
-  messages: { role: string; content: string }[],
+  messages: MultiMessageSchema[],
   customSystemPrompt?: string
 ): Promise<string> {
   switch (generationModelSettings?.provider) {
@@ -240,15 +244,9 @@ export function createPrompt(
 
 export function createMultiplePrompts(
   lifecycle: IMessageLifecycle,
-  messages: {
-    role: "user" | "assistant";
-    content: string;
-  }[],
+  messages: MultiMessageSchema[],
   overridePromptTemplate?: string
-): {
-  role: "user" | "assistant";
-  content: string;
-}[] {
+): MultiMessageSchema[] {
   if (overridePromptTemplate) {
     return messages.map((m) => {
       return parseTemplate(

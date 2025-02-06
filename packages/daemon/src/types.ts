@@ -127,6 +127,11 @@ export interface ToolRegistration {
   tool: ITool;
 }
 
+export interface MultiMessageSchema {
+  role: "user" | "assistant";
+  content: string;
+}
+
 export interface IDaemon {
   // Properties
   character: Character | undefined;

@@ -41,7 +41,7 @@ export function parseTemplate(
   const variableMap = {
     name: data.lifecycle.daemonName,
     identity: data.lifecycle.identityPrompt,
-    message: data.message,
+    message: data.message.content,
     context: data.lifecycle.context?.join("\n") ?? "",
     tools: data.lifecycle.tools?.join("\n") ?? "",
   };

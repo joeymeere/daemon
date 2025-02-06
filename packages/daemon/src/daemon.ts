@@ -6,6 +6,7 @@ import {
   type IMessageLifecycle,
   type IHook,
   type IHookLog,
+  type MultiMessageSchema,
 } from "./types";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { SSEClientTransport } from "./SSEClientTransport.js";
@@ -309,6 +310,7 @@ export class Daemon implements IDaemon {
        *   # Tools
        *   {{tools}}
        * `;
+       * ```
        */
       customMessageTemplate?: string;
     }
@@ -454,10 +456,7 @@ export class Daemon implements IDaemon {
   }
 
   async multipleMessages(
-    messages: {
-      role: "user" | "assistant";
-      content: string;
-    }[],
+    messages: MultiMessageSchema[],
     opts?: {
       channelId?: string;
       context?: boolean;
@@ -500,6 +499,7 @@ export class Daemon implements IDaemon {
        *   # Tools
        *   {{tools}}
        * `;
+       * ```
        */
       customMessageTemplate?: string;
     }
