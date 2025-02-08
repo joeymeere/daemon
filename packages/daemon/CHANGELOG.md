@@ -1,10 +1,16 @@
 # CHANGE LOG
 
+# 0.1.18 - Unreleased
+
+    - Added modelOverride to message to allow per message overrides of llm model
+
 ## 0.1.17 - 2025-01-23 5:44 PM
-    - Took out embedding key from Daemon 
+
+    - Took out embedding key from Daemon
     - Took out additional args from IHook
 
 ## 0.1.16 - 2025-01-21 5:04 PM
+
     - Modified system prompt to try and get it to hallucinate less
     - Took out embeddings from message lifecycle
     - Took out functions from IDaemonMCPServer (they should be added as serverTools not exposed functions)

@@ -6,6 +6,7 @@ import {
   type IMessageLifecycle,
   type IHook,
   type IHookLog,
+  type ModelSettings,
 } from "./types";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { SSEClientTransport } from "./SSEClientTransport.js";
@@ -270,6 +271,7 @@ export class Daemon implements IDaemon {
       toolArgs?: {
         [key: string]: any; // key = `serverUrl-toolName`
       };
+      modelOverride?: ModelSettings;
     }
   ): Promise<IMessageLifecycle> {
     if (!this.keypair) {
@@ -338,10 +340,15 @@ export class Daemon implements IDaemon {
         .flat();
     }
 
+    const modelSettings = opts?.modelOverride ?? this.character.modelSettings.generation;
+    if (!modelSettings.apiKey) {
+      modelSettings.apiKey = this.modelApiKeys.generationKey;
+    }
+
     // Generate Text
     lifecycle.generatedPrompt = createPrompt(lifecycle);
     lifecycle.output = await generateText(
-      this.character.modelSettings.generation,
+      opts?.modelOverride ?? this.character.modelSettings.generation,
       this.modelApiKeys.generationKey,
       lifecycle.generatedPrompt
     );
