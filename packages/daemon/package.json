@@ -1,7 +1,7 @@
 {
   "name": "@spacemangaming/daemon",
   "author": "Spacemandev",
-  "version": "0.1.17",
+  "version": "0.2.0-beta.1",
   "type": "module",
   "devDependencies": {
     "@types/bun": "latest",
@@ -18,14 +18,14 @@
     "eventsource": "^3.0.2",
     "nanoid": "^5.0.9",
     "openai": "^4.78.1",
+    "rxjs": "^7.8.1",
     "tweetnacl": "^1.0.3",
     "tweetnacl-util": "^0.15.1"
   },
   "scripts": {
-    "prepare": "bun run build:all",
     "build:all": "bun install && bun build ./src/index.ts --outdir ./dist && bun run build:types",
     "build:types": "tsc --emitDeclarationOnly --declaration --outDir dist",
-    "publish": "bun run build:all && npm publish --access=public"
+    "bpublish": "bun run build:all && npm publish --access=public"
   },
   "files": [
     "dist"

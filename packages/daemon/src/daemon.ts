@@ -1,485 +1,320 @@
-import {
-  type Character,
-  type IDaemon,
-  type ToolRegistration,
-  type ITool,
-  type IMessageLifecycle,
-  type IHook,
-  type IHookLog,
-  type ModelSettings,
-} from "./types";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { SSEClientTransport } from "./SSEClientTransport.js";
-import type { TextContent } from "@modelcontextprotocol/sdk/types.js";
+import { SSEClientTransport } from "./SSEClientTransport";
+import type { TextContent } from "@modelcontextprotocol/sdk/types";
 import type { Keypair } from "@solana/web3.js";
-import { createPrompt, generateText } from "./llm.js";
+import { createPrompt, genText } from "./llm";
 import nacl from "tweetnacl";
 import { nanoid } from "nanoid";
 import { Buffer } from "buffer";
+import type { Character, IHook, IHookLog, IMessageLifecycle, ModelProvider, ToolProvider, IDaemon } from "./types";
+import { BehaviorSubject } from "rxjs";
 
-const DEFAULT_IDENTITY_PROMPT = (daemon: IDaemon) => {
-  return `
-  You are ${daemon.character?.name}. Keep your responses concise and to the point.
+const DEFAULT_IDENTITY_PROMPT = (name: string) => {
+	return `
+You are ${name}. Keep your responses concise and to the point.
   `;
 };
 
-export class Daemon implements IDaemon {
-  character: Character | undefined;
-  keypair: Keypair | undefined;
-  modelApiKeys: {
-    generationKey: string | undefined;
-  } = {
-    generationKey: undefined,
-  };
+export class Daemon implements IDaemon {	
+	character: Character;
+	keypair: Keypair;
+	models: ModelProvider = {}
+	tools: ToolProvider[] = []
 
-  mcpClients: {
-    [url: string]: {
-      name: string;
-      description: string;
-      client: Client;
-    };
-  } = {};
-
-  tools: {
-    server: ToolRegistration[];
-    context: ToolRegistration[];
-    action: ToolRegistration[];
-    postProcess: ToolRegistration[];
-  } = {
-    server: [],
-    context: [],
-    action: [],
-    postProcess: [],
-  };
-
-  constructor() {}
-
-  async init(
-    identityServerUrl: string,
-    opts: {
-      character?: Character;
-      privateKey: Keypair;
-      modelApiKeys: {
-        generationKey: string;
-        embeddingKey?: string;
-      };
-    }
-  ) {
-    this.modelApiKeys = {
-      generationKey: opts.modelApiKeys.generationKey,
+	constructor(    
+		character: Character,
+		keypair: Keypair,
+	){
+        this.character = character;
+        this.keypair = keypair;
     }
 
-    this.keypair = opts.privateKey;
+	async addModelProvider(provider: ModelProvider): Promise<void> {
+		this.models = {
+			...this.models,
+			...provider,
+		}
+	}
+	
+	async addSingleToolFromProvider(provider: ToolProvider): Promise<void> {
+		this.tools.push(provider)
+	}
 
-    await this.addMCPServer({ url: identityServerUrl });
+	async addAllToolsByProvider(url: string): Promise<void> {
+		const client = new Client({
+			name: url,
+			version: "1.0.0",
+		}, {capabilities: {}})
 
-    if (opts.character) {
-      if (opts.character?.pubkey !== opts.privateKey.publicKey.toBase58()) {
-        throw new Error("Private key does not match character pubkey");
-      }
-    }
-    if (!opts.character) {
-      // If id, then fetch character from Context Server
-      try {
-        const result = await this.callTool(
-          "fetchCharacter",
-          identityServerUrl,
-          {
-            pubkey: this.keypair.publicKey.toBase58(),
-          }
-        );
+		const serverInfo = (await client.callTool({
+			name: "getDaemonServerInfo",
+			arguments: {},
+		})).content as TextContent[]
 
-        this.character = result as Character;
-      } catch (e) {
-        throw new Error(`Failed to fetch character: ${e}`);
-      }
-    } else if (opts.character) {
-      // If character, then register character in Context Server
-      try {
-        const result = await this.callTool(
-          "registerCharacter",
-          identityServerUrl,
-          opts.character
-        );
+		if (serverInfo[0].text.includes("Error")) {
+			throw new Error(serverInfo[0].text)
+		}
 
-        this.character = opts.character;
-      } catch (e) {
-        throw new Error(`Failed to register character: ${e}`);
-      }
-    } else {
-      throw new Error("No character or id provided");
-    }
+		const toolsList = JSON.parse(serverInfo[0].text) as ToolProvider[]
 
-    // Bootstrap
-    for (const bootstrap of this.character?.bootstrap ?? []) {
-      await this.addMCPServer({ url: bootstrap.serverUrl });
-      for (const tool of bootstrap.tools) {
-        await this.callTool(tool.toolName, bootstrap.serverUrl, tool.args);
-      }
-    }
-  }
+        await Promise.all(toolsList.map(async (tool) => {
+            await this.addSingleToolFromProvider(tool)
+        }))
+	}
 
-  async addMCPServer(opts: { url: string }) {
-    const client = new Client(
-      {
-        name: opts.url,
-        version: "1.0.0",
-      },
-      { capabilities: {} }
-    );
+	async callTool(tool: ToolProvider, args: any): Promise<any> {
+		const client = new Client({
+			name: tool.serverUrl,
+			version: "1.0.0",
+		}, {capabilities: {}})
 
-    await client.connect(new SSEClientTransport(new URL(opts.url)));
+        await client.connect(new SSEClientTransport(new URL(tool.serverUrl)))
 
-    // Server Info
-    const serverInfoResult = (
-      await client.callTool({ name: "getServerInfo", arguments: {} })
-    ).content as TextContent[];
+		const result = await client.callTool({
+			name: tool.tool,
+			arguments: args,
+		})
 
-    if (serverInfoResult[0].text.includes("Error")) {
-      throw new Error(serverInfoResult[0].text);
-    }
+		return result
+	}
 
-    const serverInfo = JSON.parse(serverInfoResult[0].text) as {
-      name: string;
-      description: string;
-    };
+	// Payload is b64 String
+	sign(args: { payload: string }): string {
+		if (!this.keypair) {
+			throw new Error("Keypair not found");
+		}
+		
+		const messageBytes = Uint8Array.from(Buffer.from(args.payload, "base64"));
+		const signature = nacl.sign.detached(messageBytes, this.keypair.secretKey);
+		return Buffer.from(signature).toString("base64");
+	}
+	
+	async hook(hook: IHook): Promise<IHookLog> {
+		try {
+			// Call the internal tool
+			switch (hook.daemonTool) {
+				case "sign":
+				hook.hookOutput = this.sign(hook.daemonArgs);
+				break;
+			}
+			// Create a client for the temp server
+			const client = new Client(
+				{
+					name: hook.hookTool.hookServerUrl,
+					version: "1.0.0",
+				},
+				{ capabilities: {} }
+			);
+			// Call the tool
+			const result = await client.callTool({
+				name: hook.hookTool.toolName,
+				arguments: {
+					...hook.hookTool.toolArgs,
+					daemonOutput: hook.hookOutput,
+				},
+			});
+			// Add result of tool to lifecycle by returning it;
+			return result;
+		} catch (e) {
+			throw e;
+		}
+	}
+	
+	private generateApproval(message: string, createdAt: string, messageId: string, channelId?: string): string {
+		if (!this.keypair) {
+			throw new Error("Keypair not found");
+		}
+		
+		const messageBytes = Buffer.from(
+			JSON.stringify(
+				{
+					message: message,
+					createdAt: createdAt,
+					messageId: messageId,
+					channelId: channelId ?? "",
+				},
+				null,
+				0
+			),
+			"utf-8"
+		);
+		
+		const approval = this.sign({
+			payload: messageBytes.toString("base64"),
+		});
+		
+		return approval;
+	}
 
-    // Server Tools
-    const serverTools = (
-      await client.callTool({ name: "listServerTools", arguments: {} })
-    ).content as TextContent[];
+	async message(message: string, opts?: {
+		channelId?: string;
+		stages?: {
+			context?: boolean;
+			actions?: boolean;
+			postProcess?: boolean;
+		},
+		toolArgs?: {
+			[key: string]: any; // key = `serverUrl-toolName`
+		},
+		llm?: {
+			provider: string;
+			model: string;
+            endpoint?: string;
+			apiKey?: string;
+            systemPrompt?: string;
+		}
+	}) {
+		try {
+            if(Object.keys(this.models).length === 0 && !opts?.llm) {
+                throw new Error("No model provider added")
+            }
 
-    if (serverTools[0].text.includes("Error")) {
-      throw new Error(serverTools[0].text);
-    }
+            // Pick and LLM based on Opts or first provider / model in the list
+            let llm = {};
+            const provider:string = opts?.llm?.provider ?? Object.keys(this.models)[0];
+            if(!provider) {
+                throw new Error("No LLM provider chosen")
+            }
 
-    const serverToolList = JSON.parse(serverTools[0].text) as ITool[];
+            const model:string = opts?.llm?.model ?? Object.keys(this.models[provider])[0];
+            if(!model) {
+                throw new Error("No LLM model chosen")
+            }
 
-    // Context Tools
-    const contextTools = (
-      await client.callTool({ name: "listContextTools", arguments: {} })
-    ).content as TextContent[];
+            const apiKey = opts?.llm?.apiKey ?? this.models[provider].apiKey;
+            if(!apiKey) {
+                throw new Error("No LLM API key chosen")
+            }
 
-    const contextToolList = JSON.parse(contextTools[0].text) as ITool[];
+            const endpoint = opts?.llm?.endpoint ?? this.models[provider].endpoint;
+            if(!endpoint) {
+                throw new Error("No LLM endpoint chosen")
+            }
 
-    // Action Tools
-    const actionTools = (
-      await client.callTool({ name: "listActionTools", arguments: {} })
-    ).content as TextContent[];
-    const actionToolList = JSON.parse(actionTools[0].text) as ITool[];
+            const context = opts?.stages?.context ?? true;
+            const actions = opts?.stages?.actions ?? true;
+            const postProcess = opts?.stages?.postProcess ?? true;
 
-    // Post Process Tools
-    const postProcessTools = (
-      await client.callTool({
-        name: "listPostProcessTools",
-        arguments: {},
-      })
-    ).content as TextContent[];
-    const postProcessToolList = JSON.parse(postProcessTools[0].text) as ITool[];
 
-    this.mcpClients[opts.url] = {
-      name: serverInfo.name,
-      description: serverInfo.description,
-      client,
-    };
+			const lifecycle = new BehaviorSubject<Partial<IMessageLifecycle>>({});
+            
+            // message => fetchContext => generateText => takeActions => hooks => callHooks => postProcess
+            // Base
+            lifecycle.next({
+                daemonPubkey: this.keypair.publicKey.toBase58(),
+                daemonName: this.character.name,
+                messageId: nanoid(),
+                message: message,
+                createdAt: new Date().toISOString(),
+                approval: this.generateApproval(
+                    message, new Date().toISOString(), nanoid(), opts?.channelId ?? undefined
+                ),
+                channelId: opts?.channelId ?? undefined,
+                identityPrompt: this.character.identityPrompt ?? DEFAULT_IDENTITY_PROMPT(this.character.name),
+                context: [],
+                tools: [],
+                generatedPrompt: "",
+                output: "",
+                hooks: [],
+                hooksLog: [],
+                actionsLog: [],
+                postProcessLog: [],
+            })
 
-    this.tools.server.push(
-      ...serverToolList.map((serverTool) => {
-        return {
-          serverUrl: opts.url,
-          tool: serverTool,
-        };
-      })
-    );
-    this.tools.server.sort((a, b) => a.tool.zIndex - b.tool.zIndex);
+            // fetchContext
+            if(context) {
+                let contextPromises: Promise<any>[] = [];
+                for(const tool of this.tools) {
+                    if(tool.type === "context") {
+                        contextPromises.push(this.callTool(tool, {
+                            lifecycle: lifecycle.value,
+                            args: opts?.toolArgs?.[`${tool.serverUrl}-${tool.tool}`] ?? {},
+                        }))
+                    }
+                }
 
-    this.tools.context.push(
-      ...contextToolList.map((contextTool) => {
-        return {
-          serverUrl: opts.url,
-          tool: contextTool,
-        };
-      })
-    );
-    this.tools.context.sort((a, b) => a.tool.zIndex - b.tool.zIndex);
+                const contextResults = await Promise.all(contextPromises);
+                lifecycle.next({
+                    ...lifecycle.value,
+                    context: contextResults,
+                })
+            }
 
-    this.tools.action.push(
-      ...actionToolList.map((actionTool) => {
-        return {
-          serverUrl: opts.url,
-          tool: actionTool,
-        };
-      })
-    );
-    this.tools.action.sort((a, b) => a.tool.zIndex - b.tool.zIndex);
+            // Generate Prompt
+            lifecycle.next({
+                ...lifecycle.value,
+                generatedPrompt: createPrompt(
+                    lifecycle.value.daemonName ?? "",
+                    lifecycle.value.identityPrompt ?? "",
+                    lifecycle.value.message ?? "",
+                    lifecycle.value.context ?? [],
+                    lifecycle.value.tools ?? []
+                ),
+            })
 
-    this.tools.postProcess.push(
-      ...postProcessToolList.map((postProcessTool) => {
-        return {
-          serverUrl: opts.url,
-          tool: postProcessTool,
-        };
-      })
-    );
-    this.tools.postProcess.sort((a, b) => a.tool.zIndex - b.tool.zIndex);
-  }
+            // Generate Text
+            lifecycle.next({
+                ...lifecycle.value,
+                output: await genText(
+                    provider,
+                    model,
+                    endpoint,
+                    apiKey,
+                    opts?.llm?.systemPrompt ?? "",
+                    lifecycle.value.generatedPrompt!,
+                )
+            }); 
 
-  async removeMCPServer(opts: { url: string }): Promise<void> {
-    delete this.mcpClients[opts.url];
-    this.tools.server = this.tools.server.filter(
-      (tool) => tool.serverUrl !== opts.url
-    );
-    this.tools.context = this.tools.context.filter(
-      (tool) => tool.serverUrl !== opts.url
-    );
-    this.tools.action = this.tools.action.filter(
-      (tool) => tool.serverUrl !== opts.url
-    );
-    this.tools.postProcess = this.tools.postProcess.filter(
-      (tool) => tool.serverUrl !== opts.url
-    );
-  }
+            if(actions) {
+                let actionPromises: Promise<any>[] = [];
+                for(const tool of this.tools) {
+                    if(tool.type === "action") {
+                        actionPromises.push(this.callTool(tool, {
+                        lifecycle: lifecycle.value,
+                        args: opts?.toolArgs?.[`${tool.serverUrl}-${tool.tool}`] ?? {},
+                    }))
+                    }
+                }
 
-  private async callTool(
-    toolName: string,
-    toolURL: string,
-    args: any
-  ): Promise<any> {
-    const client = this.mcpClients[toolURL].client;
+                const actionResults = await Promise.all(actionPromises);
+                lifecycle.next({
+                    ...lifecycle.value,
+                    actionsLog: actionResults,
+                })
 
-    const result = (
-      await client.callTool({
-        name: toolName,
-        arguments: args,
-      })
-    ).content as TextContent[];
+                let hookPromises: Promise<any>[] = [];
+                for(const hook of lifecycle.value.hooks ?? []) {
+                    hookPromises.push(this.hook(hook))
+                }
 
-    if (result[0].text.includes("Error")) {
-      throw new Error(result[0].text);
-    } else {
-      return JSON.parse(result[0].text);
-    }
-  }
+                const hookResults = await Promise.all(hookPromises);
+                lifecycle.next({
+                    ...lifecycle.value,
+                    hooksLog: hookResults,
+                })
+            }
 
-  async message(
-    message: string,
-    opts?: {
-      channelId?: string;
-      context?: boolean;
-      actions?: boolean;
-      postProcess?: boolean;
-      toolArgs?: {
-        [key: string]: any; // key = `serverUrl-toolName`
-      };
-      modelOverride?: ModelSettings;
-    }
-  ): Promise<IMessageLifecycle> {
-    if (!this.keypair) {
-      throw new Error("Keypair not found");
-    }
+            if(postProcess) {
+                let postProcessPromises: Promise<any>[] = [];
+                for(const tool of this.tools) {
+                    if(tool.type === "postProcess") {
+                        postProcessPromises.push(this.callTool(tool, {
+                            lifecycle: lifecycle.value,
+                            args: opts?.toolArgs?.[`${tool.serverUrl}-${tool.tool}`] ?? {},
+                        }))
+                    }
+                }
 
-    if (!this.character) {
-      throw new Error("Character not found");
-    }
+                const postProcessResults = await Promise.all(postProcessPromises);
+                lifecycle.next({
+                    ...lifecycle.value,
+                    postProcessLog: postProcessResults,
+                })
+            }
 
-    if (!this.modelApiKeys.generationKey) {
-      throw new Error("Model API key not found");
-    }
-
-    const context = opts?.context ?? true;
-    const actions = opts?.actions ?? true;
-    const postProcess = opts?.postProcess ?? true;
-
-    // Lifecycle: message -> fetchContext -> generateText -> takeActions -> hooks -> callHooks -> postProcess
-    let lifecycle: IMessageLifecycle = {
-      daemonPubkey: this.keypair.publicKey.toBase58(),
-      daemonName: this.character?.name ?? "",
-      messageId: nanoid(),
-      message: message,
-      createdAt: new Date().toISOString(),
-      approval: "",
-      channelId: opts?.channelId ?? null,
-      identityPrompt:
-        this.character?.identityPrompt ?? DEFAULT_IDENTITY_PROMPT(this),
-      context: [],
-      tools: [],
-      generatedPrompt: "",
-      output: "",
-      hooks: [],
-      hooksLog: [],
-      actionsLog: [],
-      postProcessLog: [],
-    };
-
-    // Generate Approval
-    lifecycle = this.generateApproval(lifecycle);
-
-    if (context) {
-      let contextPromises: Promise<IMessageLifecycle>[] = [];
-      for (const tool of this.tools.context) {
-        const toolArgs =
-          opts?.toolArgs?.[`${tool.serverUrl}-${tool.tool.name}`];
-        contextPromises.push(
-          this.callTool(tool.tool.name, tool.serverUrl, {
-            lifecycle,
-            args: toolArgs,
-          })
-        );
-      }
-
-      const contextResults = await Promise.all(contextPromises);
-      lifecycle.context = contextResults
-        .map((lfcyl) => {
-          return lfcyl.context;
-        })
-        .flat();
-      lifecycle.tools = contextResults
-        .map((lfcyl) => {
-          return lfcyl.tools;
-        })
-        .flat();
-    }
-
-    const modelSettings = opts?.modelOverride ?? this.character.modelSettings.generation;
-    if (!modelSettings.apiKey) {
-      modelSettings.apiKey = this.modelApiKeys.generationKey;
-    }
-
-    // Generate Text
-    lifecycle.generatedPrompt = createPrompt(lifecycle);
-    lifecycle.output = await generateText(
-      opts?.modelOverride ?? this.character.modelSettings.generation,
-      this.modelApiKeys.generationKey,
-      lifecycle.generatedPrompt
-    );
-
-    if (actions) {
-      let actionPromises: Promise<IMessageLifecycle>[] = [];
-      for (const tool of this.tools.action) {
-        const toolArgs =
-          opts?.toolArgs?.[`${tool.serverUrl}-${tool.tool.name}`];
-        actionPromises.push(
-          this.callTool(tool.tool.name, tool.serverUrl, {
-            lifecycle,
-            args: toolArgs,
-          })
-        );
-      }
-
-      const actionResults = await Promise.all(actionPromises);
-      lifecycle.actionsLog = actionResults
-        .map((lfcyl) => {
-          return lfcyl.actionsLog;
-        })
-        .flat();
-      lifecycle.hooks = actionResults
-        .map((lfcyl) => {
-          return lfcyl.hooks;
-        })
-        .flat();
-
-      let hookPromises: Promise<any>[] = [];
-      for (const hook of lifecycle.hooks) {
-        hookPromises.push(this.hook(hook));
-      }
-
-      const hookResults = await Promise.all(hookPromises);
-      lifecycle.hooksLog = hookResults
-        .map((hookResult) => {
-          return hookResult;
-        })
-        .flat();
-    }
-
-    if (postProcess) {
-      let postProcessPromises: Promise<IMessageLifecycle>[] = [];
-      for (const tool of this.tools.postProcess) {
-        const toolArgs =
-          opts?.toolArgs?.[`${tool.serverUrl}-${tool.tool.name}`];
-        postProcessPromises.push(
-          this.callTool(tool.tool.name, tool.serverUrl, {
-            lifecycle,
-            args: toolArgs,
-          })
-        );
-      }
-
-      const postProcessResults = await Promise.all(postProcessPromises);
-      lifecycle.postProcessLog = postProcessResults
-        .map((lfcyl) => {
-          return lfcyl.postProcessLog;
-        })
-        .flat();
-    }
-
-    return lifecycle;
-  }
-
-  // Payload is b64 String
-  sign(args: { payload: string }): string {
-    if (!this.keypair) {
-      throw new Error("Keypair not found");
-    }
-
-    const messageBytes = Uint8Array.from(Buffer.from(args.payload, "base64"));
-    const signature = nacl.sign.detached(messageBytes, this.keypair.secretKey);
-    return Buffer.from(signature).toString("base64");
-  }
-
-  private async hook(hook: IHook): Promise<IHookLog> {
-    try {
-      // Call the internal tool
-      switch (hook.daemonTool) {
-        case "sign":
-          hook.hookOutput = this.sign(hook.daemonArgs);
-          break;
-      }
-      // Create a client for the temp server
-      const client = new Client(
-        {
-          name: hook.hookTool.hookServerUrl,
-          version: "1.0.0",
-        },
-        { capabilities: {} }
-      );
-      // Call the tool
-      const result = await client.callTool({
-        name: hook.hookTool.toolName,
-        arguments: {
-          ...hook.hookTool.toolArgs,
-          daemonOutput: hook.hookOutput,
-        },
-      });
-      // Add result of tool to lifecycle by returning it;
-      return result;
-    } catch (e) {
-      throw e;
-    }
-  }
-
-  private generateApproval(lifecycle: IMessageLifecycle): IMessageLifecycle {
-    if (!this.keypair) {
-      throw new Error("Keypair not found");
-    }
-
-    const messageBytes = Buffer.from(
-      JSON.stringify(
-        {
-          message: lifecycle.message,
-          createdAt: lifecycle.createdAt,
-          messageId: lifecycle.messageId,
-          channelId: lifecycle.channelId ?? "",
-        },
-        null,
-        0
-      ),
-      "utf-8"
-    );
-
-    lifecycle.approval = this.sign({
-      payload: messageBytes.toString("base64"),
-    });
-
-    return lifecycle;
-  }
+            return lifecycle;
+        } catch (e: any) {
+			throw new Error(`Failed at step: ${e}`)
+		}
+	}
 }

@@ -1,6 +1,4 @@
 import OpenAI from "openai";
-import type { IMessageLifecycle, ModelSettings } from "./types";
-import Anthropic from "@anthropic-ai/sdk";
 
 export const SYSTEM_PROMPT = `
 You are an AI agent operating within a framework that provides you with:
@@ -46,101 +44,71 @@ It's *very* important that if you do not know something, then you don't make som
 Remember: You are not just processing queries - you are embodying a specific identity with consistent traits, memories, and capabilities.
 `;
 
-export async function generateEmbeddings(
-  embeddingModelSettings: ModelSettings,
-  embeddingModelKey: string,
-  message: string
-): Promise<number[]> {
-  switch (embeddingModelSettings?.provider) {
-    case "openai":
-      const client = new OpenAI({
-        apiKey: embeddingModelKey,
-        baseURL: embeddingModelSettings.endpoint,
-        dangerouslyAllowBrowser: true,
-      });
-
-      const embedding = await client.embeddings.create({
-        model: embeddingModelSettings.name,
-        input: message,
-      });
-      return embedding.data[0].embedding;
-      break;
-    case "anthropic":
-      throw new Error("Anthropic embedding not implemented");
-      break;
-  }
-}
-
-export async function generateText(
-  generationModelSettings: ModelSettings,
-  generationModelKey: string,
-  userMessage: string
+export async function genText(
+    provider: string,
+    model: string,
+    endpoint: string,
+    apiKey: string,
+    systemPrompt: string,
+    prompt: string,
 ): Promise<string> {
-  switch (generationModelSettings?.provider) {
-    case "openai":
-      const openai = new OpenAI({
-        apiKey: generationModelKey,
-        baseURL: generationModelSettings.endpoint,
-        dangerouslyAllowBrowser: true,
-      });
-
-      const openaiResponse = await openai.chat.completions.create({
-        model: generationModelSettings.name,
-        messages: [
-          {
-            role: "system",
-            content: SYSTEM_PROMPT,
-          },
-          {
-            role: "user",
-            content: userMessage,
-          },
-        ],
-        temperature: generationModelSettings.temperature,
-        max_completion_tokens: generationModelSettings.maxTokens,
-      });
-
-      return openaiResponse.choices[0].message.content ?? "";
-      break;
-    case "anthropic":
-      const anthropic = new Anthropic({
-        apiKey: generationModelKey,
-        baseURL: generationModelSettings.endpoint,
-      });
-
-      const anthropicResponse = await anthropic.messages.create({
-        model: generationModelSettings.name,
-        system: SYSTEM_PROMPT,
-        messages: [
-          {
-            role: "user",
-            content: userMessage,
-          },
-        ],
-        max_tokens: generationModelSettings.maxTokens ?? 1000,
-        temperature: generationModelSettings.temperature ?? 0.2,
-      });
-
-      return anthropicResponse.content.join("\n");
-      break;
-  }
+    try {
+        switch(provider) {
+            case "openai":
+            case "openrouter":
+                const llm = new OpenAI({
+                    apiKey: apiKey,
+                    baseURL: endpoint,
+                    dangerouslyAllowBrowser: true,
+                });
+    
+                const response = await llm.chat.completions.create({
+                    model: model,
+                    messages: [
+                        {
+                            role: "system",
+                            content: systemPrompt === "" ? SYSTEM_PROMPT : systemPrompt,
+                        },
+                        {
+                            role: "user",
+                            content: prompt,
+                        }
+                    ],
+                    temperature: 0.2,
+                    max_completion_tokens: 1000,
+                })
+    
+                return response.choices[0].message.content ?? "";
+                break;
+            default:
+                throw new Error(`Unsupported provider: ${provider}`)
+        }
+    } catch(e: any) {
+        throw new Error(`Error generating text: ${e}`)
+    }
 }
 
-export function createPrompt(lifecycle: IMessageLifecycle): string {
+export function createPrompt(
+    daemonName: string,
+    identityPrompt: string,
+    message: string,
+    context: string[],
+    tools: string[]
+): string {
   return `
   # Name
-  ${lifecycle.daemonName}
+  ${daemonName}
 
   # Identity Prompt
-  ${lifecycle.identityPrompt}
+  ${identityPrompt}
 
   # User Message
-  ${lifecycle.message}
+  ${message}
   
   # Context
-  ${lifecycle.context?.join("\n")}
+  ${context?.join("\n")}
 
   # Tools
-  ${lifecycle.tools?.join("\n")}
+  ${tools?.join("\n")}
   `;
 }

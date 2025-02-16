@@ -1,8 +1,12 @@
 # CHANGE LOG
 
-# 0.1.18 - Unreleased
+# 0.2.0 - Beta (Daemon v2)
 
-    - Added modelOverride to message to allow per message overrides of llm model
+    - Everything is changed to make Daemon simpler, faster, more flexible.
+    - /message returns an observable that you can subscribe to for the message lifecycle.
+    - types got an overhaul to support new features
+    - the way daemon handles tools is done per tool rather than per server
+    - MCPServer info is now just one method that returns all tools ("getDaemonServerInfo")
 
 ## 0.1.17 - 2025-01-23 5:44 PM
 
