@@ -6,315 +6,362 @@ import { createPrompt, genText } from "./llm";
 import nacl from "tweetnacl";
 import { nanoid } from "nanoid";
 import { Buffer } from "buffer";
-import type { Character, IHook, IHookLog, IMessageLifecycle, ModelProvider, ToolProvider, IDaemon } from "./types";
+import type {
+  Character,
+  IHook,
+  IHookLog,
+  IMessageLifecycle,
+  ModelProvider,
+  ToolProvider,
+  IDaemon,
+} from "./types";
 import { BehaviorSubject } from "rxjs";
+import { ToolCaller } from "./utils/tool-caller";
 
 const DEFAULT_IDENTITY_PROMPT = (name: string) => {
-	return `
+  return `
 You are ${name}. Keep your responses concise and to the point.
   `;
 };
 
-export class Daemon implements IDaemon {	
-	character: Character;
-	keypair: Keypair;
-	models: ModelProvider = {}
-	tools: ToolProvider[] = []
+export class Daemon implements IDaemon {
+  character: Character;
+  keypair: Keypair;
+  models: ModelProvider = {};
+  tools: ToolProvider[] = [];
 
-	constructor(    
-		character: Character,
-		keypair: Keypair,
-	){
-        this.character = character;
-        this.keypair = keypair;
+  constructor(character: Character, keypair: Keypair) {
+    this.character = character;
+    this.keypair = keypair;
+  }
+
+  async addModelProvider(provider: ModelProvider): Promise<void> {
+    this.models = {
+      ...this.models,
+      ...provider,
+    };
+  }
+
+  async addSingleToolFromProvider(provider: ToolProvider): Promise<void> {
+    this.tools.push(provider);
+  }
+
+  async addAllToolsByProvider(url: string): Promise<void> {
+    const client = new Client(
+      {
+        name: url,
+        version: "1.0.0",
+      },
+      { capabilities: {} }
+    );
+
+    const serverInfo = (
+      await client.callTool({
+        name: "getDaemonServerInfo",
+        arguments: {},
+      })
+    ).content as TextContent[];
+
+    if (serverInfo[0].text.includes("Error")) {
+      throw new Error(serverInfo[0].text);
     }
 
-	async addModelProvider(provider: ModelProvider): Promise<void> {
-		this.models = {
-			...this.models,
-			...provider,
-		}
-	}
-	
-	async addSingleToolFromProvider(provider: ToolProvider): Promise<void> {
-		this.tools.push(provider)
-	}
+    const toolsList = JSON.parse(serverInfo[0].text) as ToolProvider[];
 
-	async addAllToolsByProvider(url: string): Promise<void> {
-		const client = new Client({
-			name: url,
-			version: "1.0.0",
-		}, {capabilities: {}})
+    await Promise.all(
+      toolsList.map(async (tool) => {
+        await this.addSingleToolFromProvider(tool);
+      })
+    );
+  }
 
-		const serverInfo = (await client.callTool({
-			name: "getDaemonServerInfo",
-			arguments: {},
-		})).content as TextContent[]
+  async callTool(tool: ToolProvider, args: any): Promise<any> {
+    return ToolCaller.callWithRetries(tool, args);
+  }
 
-		if (serverInfo[0].text.includes("Error")) {
-			throw new Error(serverInfo[0].text)
-		}
+  sign(args: { payload: string }): string {
+    if (!this.keypair) {
+      throw new Error("Keypair not found");
+    }
 
-		const toolsList = JSON.parse(serverInfo[0].text) as ToolProvider[]
+    const messageBytes = Uint8Array.from(Buffer.from(args.payload, "base64"));
+    const signature = nacl.sign.detached(messageBytes, this.keypair.secretKey);
+    return Buffer.from(signature).toString("base64");
+  }
 
-        await Promise.all(toolsList.map(async (tool) => {
-            await this.addSingleToolFromProvider(tool)
-        }))
-	}
+  async hook(hook: IHook): Promise<IHookLog> {
+    try {
+      switch (hook.daemonTool) {
+        case "sign":
+          hook.hookOutput = this.sign(hook.daemonArgs);
+          break;
+      }
+      const client = new Client(
+        {
+          name: hook.hookTool.hookServerUrl,
+          version: "1.0.0",
+        },
+        { capabilities: {} }
+      );
+      const result = await client.callTool({
+        name: hook.hookTool.toolName,
+        arguments: {
+          ...hook.hookTool.toolArgs,
+          daemonOutput: hook.hookOutput,
+        },
+      });
+      return result;
+    } catch (e) {
+      throw e;
+    }
+  }
 
-	async callTool(tool: ToolProvider, args: any): Promise<any> {
-		const client = new Client({
-			name: tool.serverUrl,
-			version: "1.0.0",
-		}, {capabilities: {}})
+  private generateApproval(
+    message: string,
+    createdAt: string,
+    messageId: string,
+    channelId?: string
+  ): string {
+    if (!this.keypair) {
+      throw new Error("Keypair not found");
+    }
 
-        await client.connect(new SSEClientTransport(new URL(tool.serverUrl)))
+    const messageBytes = Buffer.from(
+      JSON.stringify(
+        {
+          message: message,
+          createdAt: createdAt,
+          messageId: messageId,
+          channelId: channelId ?? "",
+        },
+        null,
+        0
+      ),
+      "utf-8"
+    );
 
-		const result = await client.callTool({
-			name: tool.tool,
-			arguments: args,
-		})
+    const approval = this.sign({
+      payload: messageBytes.toString("base64"),
+    });
 
-		return result
-	}
+    return approval;
+  }
 
-	// Payload is b64 String
-	sign(args: { payload: string }): string {
-		if (!this.keypair) {
-			throw new Error("Keypair not found");
-		}
-		
-		const messageBytes = Uint8Array.from(Buffer.from(args.payload, "base64"));
-		const signature = nacl.sign.detached(messageBytes, this.keypair.secretKey);
-		return Buffer.from(signature).toString("base64");
-	}
-	
-	async hook(hook: IHook): Promise<IHookLog> {
-		try {
-			// Call the internal tool
-			switch (hook.daemonTool) {
-				case "sign":
-				hook.hookOutput = this.sign(hook.daemonArgs);
-				break;
-			}
-			// Create a client for the temp server
-			const client = new Client(
-				{
-					name: hook.hookTool.hookServerUrl,
-					version: "1.0.0",
-				},
-				{ capabilities: {} }
-			);
-			// Call the tool
-			const result = await client.callTool({
-				name: hook.hookTool.toolName,
-				arguments: {
-					...hook.hookTool.toolArgs,
-					daemonOutput: hook.hookOutput,
-				},
-			});
-			// Add result of tool to lifecycle by returning it;
-			return result;
-		} catch (e) {
-			throw e;
-		}
-	}
-	
-	private generateApproval(message: string, createdAt: string, messageId: string, channelId?: string): string {
-		if (!this.keypair) {
-			throw new Error("Keypair not found");
-		}
-		
-		const messageBytes = Buffer.from(
-			JSON.stringify(
-				{
-					message: message,
-					createdAt: createdAt,
-					messageId: messageId,
-					channelId: channelId ?? "",
-				},
-				null,
-				0
-			),
-			"utf-8"
-		);
-		
-		const approval = this.sign({
-			payload: messageBytes.toString("base64"),
-		});
-		
-		return approval;
-	}
+  async messageStream(
+    messages: string[],
+    opts?: {
+      channelId?: string;
+      stages?: {
+        context?: boolean;
+        actions?: boolean;
+        postProcess?: boolean;
+      };
+      toolArgs?: {
+        [key: string]: any;
+      };
+      llm?: {
+        provider: string;
+        model: string;
+        endpoint?: string;
+        apiKey?: string;
+        systemPrompt?: string;
+      };
+    }
+  ): Promise<BehaviorSubject<Partial<IMessageLifecycle>>[]> {
+    return Promise.all(messages.map((msg) => this.message(msg, opts)));
+  }
 
-	async message(message: string, opts?: {
-		channelId?: string;
-		stages?: {
-			context?: boolean;
-			actions?: boolean;
-			postProcess?: boolean;
-		},
-		toolArgs?: {
-			[key: string]: any; // key = `serverUrl-toolName`
-		},
-		llm?: {
-			provider: string;
-			model: string;
-            endpoint?: string;
-			apiKey?: string;
-            systemPrompt?: string;
-		}
-	}) {
-		try {
-            if(Object.keys(this.models).length === 0 && !opts?.llm) {
-                throw new Error("No model provider added")
-            }
+  async message(
+    message: string,
+    opts?: {
+      channelId?: string;
+      stages?: {
+        context?: boolean;
+        actions?: boolean;
+        postProcess?: boolean;
+      };
+      toolArgs?: {
+        [key: string]: any;
+      };
+      llm?: {
+        provider: string;
+        model: string;
+        endpoint?: string;
+        apiKey?: string;
+        systemPrompt?: string;
+      };
+    }
+  ) {
+    try {
+      if (Object.keys(this.models).length === 0 && !opts?.llm) {
+        throw new Error("No model provider added");
+      }
 
-            // Pick and LLM based on Opts or first provider / model in the list
-            let llm = {};
-            const provider:string = opts?.llm?.provider ?? Object.keys(this.models)[0];
-            if(!provider) {
-                throw new Error("No LLM provider chosen")
-            }
+      let llm = {};
+      const provider: string =
+        opts?.llm?.provider ?? Object.keys(this.models)[0];
+      if (!provider) {
+        throw new Error("No LLM provider chosen");
+      }
 
-            const model:string = opts?.llm?.model ?? Object.keys(this.models[provider])[0];
-            if(!model) {
-                throw new Error("No LLM model chosen")
-            }
+      const model: string =
+        opts?.llm?.model ?? Object.keys(this.models[provider])[0];
+      if (!model) {
+        throw new Error("No LLM model chosen");
+      }
 
-            const apiKey = opts?.llm?.apiKey ?? this.models[provider].apiKey;
-            if(!apiKey) {
-                throw new Error("No LLM API key chosen")
-            }
+      const apiKey = opts?.llm?.apiKey ?? this.models[provider].apiKey;
+      if (!apiKey) {
+        throw new Error("No LLM API key chosen");
+      }
 
-            const endpoint = opts?.llm?.endpoint ?? this.models[provider].endpoint;
-            if(!endpoint) {
-                throw new Error("No LLM endpoint chosen")
-            }
+      const endpoint = opts?.llm?.endpoint ?? this.models[provider].endpoint;
+      if (!endpoint) {
+        throw new Error("No LLM endpoint chosen");
+      }
 
-            const context = opts?.stages?.context ?? true;
-            const actions = opts?.stages?.actions ?? true;
-            const postProcess = opts?.stages?.postProcess ?? true;
+      const context = opts?.stages?.context ?? true;
+      const actions = opts?.stages?.actions ?? true;
+      const postProcess = opts?.stages?.postProcess ?? true;
 
+      const lifecycle = new BehaviorSubject<Partial<IMessageLifecycle>>({
+        daemonPubkey: this.keypair.publicKey.toBase58(),
+        daemonName: this.character.name,
+        messageId: nanoid(),
+        message: message,
+        createdAt: new Date().toISOString(),
+        approval: this.generateApproval(
+          message,
+          new Date().toISOString(),
+          nanoid(),
+          opts?.channelId ?? undefined
+        ),
+        channelId: opts?.channelId ?? undefined,
+        identityPrompt:
+          this.character.identityPrompt ??
+          DEFAULT_IDENTITY_PROMPT(this.character.name),
+        context: [],
+        tools: [],
+        generatedPrompt: "",
+        output: "",
+        hooks: [],
+        hooksLog: [],
+        actionsLog: [],
+        postProcessLog: [],
+      });
 
-			const lifecycle = new BehaviorSubject<Partial<IMessageLifecycle>>({});
-            
-            // message => fetchContext => generateText => takeActions => hooks => callHooks => postProcess
-            // Base
-            lifecycle.next({
-                daemonPubkey: this.keypair.publicKey.toBase58(),
-                daemonName: this.character.name,
-                messageId: nanoid(),
-                message: message,
-                createdAt: new Date().toISOString(),
-                approval: this.generateApproval(
-                    message, new Date().toISOString(), nanoid(), opts?.channelId ?? undefined
-                ),
-                channelId: opts?.channelId ?? undefined,
-                identityPrompt: this.character.identityPrompt ?? DEFAULT_IDENTITY_PROMPT(this.character.name),
-                context: [],
-                tools: [],
-                generatedPrompt: "",
-                output: "",
-                hooks: [],
-                hooksLog: [],
-                actionsLog: [],
-                postProcessLog: [],
+      if (context) {
+        const contextTools = this.tools.filter(
+          (tool) => tool.type === "context"
+        );
+        const contextResults = await Promise.allSettled(
+          contextTools.map((tool) =>
+            this.callTool(tool, {
+              lifecycle: lifecycle.value,
+              args: opts?.toolArgs?.[`${tool.serverUrl}-${tool.tool}`] ?? {},
             })
+          )
+        );
 
-            // fetchContext
-            if(context) {
-                let contextPromises: Promise<any>[] = [];
-                for(const tool of this.tools) {
-                    if(tool.type === "context") {
-                        contextPromises.push(this.callTool(tool, {
-                            lifecycle: lifecycle.value,
-                            args: opts?.toolArgs?.[`${tool.serverUrl}-${tool.tool}`] ?? {},
-                        }))
-                    }
-                }
+        lifecycle.next({
+          ...lifecycle.value,
+          context: contextResults
+            .filter(
+              (result): result is PromiseFulfilledResult<any> =>
+                result.status === "fulfilled"
+            )
+            .map((result) => result.value),
+        });
+      }
 
-                const contextResults = await Promise.all(contextPromises);
-                lifecycle.next({
-                    ...lifecycle.value,
-                    context: contextResults,
-                })
-            }
+      lifecycle.next({
+        ...lifecycle.value,
+        generatedPrompt: createPrompt(
+          lifecycle.value.daemonName ?? "",
+          lifecycle.value.identityPrompt ?? "",
+          lifecycle.value.message ?? "",
+          lifecycle.value.context ?? [],
+          lifecycle.value.tools ?? []
+        ),
+      });
 
-            // Generate Prompt
-            lifecycle.next({
-                ...lifecycle.value,
-                generatedPrompt: createPrompt(
-                    lifecycle.value.daemonName ?? "",
-                    lifecycle.value.identityPrompt ?? "",
-                    lifecycle.value.message ?? "",
-                    lifecycle.value.context ?? [],
-                    lifecycle.value.tools ?? []
-                ),
+      lifecycle.next({
+        ...lifecycle.value,
+        output: await genText(
+          provider,
+          model,
+          endpoint,
+          apiKey,
+          opts?.llm?.systemPrompt ?? "",
+          lifecycle.value.generatedPrompt!
+        ),
+      });
+
+      if (actions) {
+        const actionTools = this.tools.filter((tool) => tool.type === "action");
+        const actionResults = await Promise.allSettled(
+          actionTools.map((tool) =>
+            this.callTool(tool, {
+              lifecycle: lifecycle.value,
+              args: opts?.toolArgs?.[`${tool.serverUrl}-${tool.tool}`] ?? {},
             })
+          )
+        );
 
-            // Generate Text
-            lifecycle.next({
-                ...lifecycle.value,
-                output: await genText(
-                    provider,
-                    model,
-                    endpoint,
-                    apiKey,
-                    opts?.llm?.systemPrompt ?? "",
-                    lifecycle.value.generatedPrompt!,
-                )
-            }); 
+        lifecycle.next({
+          ...lifecycle.value,
+          actionsLog: actionResults
+            .filter(
+              (result): result is PromiseFulfilledResult<any> =>
+                result.status === "fulfilled"
+            )
+            .map((result) => result.value),
+        });
 
-            if(actions) {
-                let actionPromises: Promise<any>[] = [];
-                for(const tool of this.tools) {
-                    if(tool.type === "action") {
-                        actionPromises.push(this.callTool(tool, {
-                        lifecycle: lifecycle.value,
-                        args: opts?.toolArgs?.[`${tool.serverUrl}-${tool.tool}`] ?? {},
-                    }))
-                    }
-                }
+        if (lifecycle.value.hooks?.length) {
+          const hookResults = await Promise.allSettled(
+            lifecycle.value.hooks.map((hook) => this.hook(hook))
+          );
 
-                const actionResults = await Promise.all(actionPromises);
-                lifecycle.next({
-                    ...lifecycle.value,
-                    actionsLog: actionResults,
-                })
+          lifecycle.next({
+            ...lifecycle.value,
+            hooksLog: hookResults
+              .filter(
+                (result): result is PromiseFulfilledResult<any> =>
+                  result.status === "fulfilled"
+              )
+              .map((result) => result.value),
+          });
+        }
+      }
 
-                let hookPromises: Promise<any>[] = [];
-                for(const hook of lifecycle.value.hooks ?? []) {
-                    hookPromises.push(this.hook(hook))
-                }
+      if (postProcess) {
+        const postProcessTools = this.tools.filter(
+          (tool) => tool.type === "postProcess"
+        );
+        const postProcessResults = await Promise.allSettled(
+          postProcessTools.map((tool) =>
+            this.callTool(tool, {
+              lifecycle: lifecycle.value,
+              args: opts?.toolArgs?.[`${tool.serverUrl}-${tool.tool}`] ?? {},
+            })
+          )
+        );
 
-                const hookResults = await Promise.all(hookPromises);
-                lifecycle.next({
-                    ...lifecycle.value,
-                    hooksLog: hookResults,
-                })
-            }
+        lifecycle.next({
+          ...lifecycle.value,
+          postProcessLog: postProcessResults
+            .filter(
+              (result): result is PromiseFulfilledResult<any> =>
+                result.status === "fulfilled"
+            )
+            .map((result) => result.value),
+        });
+      }
 
-            if(postProcess) {
-                let postProcessPromises: Promise<any>[] = [];
-                for(const tool of this.tools) {
-                    if(tool.type === "postProcess") {
-                        postProcessPromises.push(this.callTool(tool, {
-                            lifecycle: lifecycle.value,
-                            args: opts?.toolArgs?.[`${tool.serverUrl}-${tool.tool}`] ?? {},
-                        }))
-                    }
-                }
-
-                const postProcessResults = await Promise.all(postProcessPromises);
-                lifecycle.next({
-                    ...lifecycle.value,
-                    postProcessLog: postProcessResults,
-                })
-            }
-
-            return lifecycle;
-        } catch (e: any) {
-			throw new Error(`Failed at step: ${e}`)
-		}
-	}
+      return lifecycle;
+    } catch (e: any) {
+      throw new Error(`Message processing failed: ${e.message}`);
+    }
+  }
 }
